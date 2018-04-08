@@ -10,9 +10,7 @@ pub struct Person {
 }
 
 pub fn main() {
-	/*
-	let p = Person { name: "bob", age: 5 };
+	let p = Person { name: "john smith", age: 5 };
 	use rocket::http::uri::UriDisplay;
 	println!("{}", &p as &UriDisplay);
-	*/
 }

@@ -58,13 +58,10 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
     let name = input.ident;
     let struct_fields = validate_input(input)?;
 
-    // Create iterators over the identifers as idents and as format strings.
-    let idents = struct_fields.named.iter().map(|v| v.ident.unwrap());
-    let format_strs = struct_fields.named.iter().map(|v| {
-        let field = v.ident.unwrap().to_string();
-        field + "={}"
-    });
-
+    // Enumerate all the field names in the struct.
+    let idents: &Vec<&Ident> = &struct_fields.named.iter()
+                                    .map(|v| v.ident.as_ref().unwrap())
+                                    .collect();
     // Generate the implementation.
     Ok(quote! {
         mod scope {
@@ -75,19 +72,19 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            macro_rules! uri_format_helper {
-                (&) => { "&" };
-                ($x:tt) => { $x };
-            }
             macro_rules! uri_format {
+                (&) => { "&" };
+                (=) => { "=" };
+                ($x:block) => { "{}" };
+                ($x:ident) => { stringify!($x) };
                 ($($x:tt)*) => {
-                    concat!($(uri_format_helper!($x)),*)
+                    concat!($(uri_format!($x)),*)
                 };
             }
 
             impl UriDisplay for #name {
                 fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                  write!(f, uri_format!(#(#format_strs)&*), #(&self.#idents as &UriDisplay),*)
+                  write!(f, uri_format!(#(#idents={})&*), #(&self.#idents as &UriDisplay),*)
                 }
             }
         }
