@@ -24,11 +24,11 @@ const NO_GENERICS: &str = "enums with generics cannot derive `FromFormValue`";
 const ONLY_ENUMS: &str = "`FromFormValue` can only be derived for enums";
 const EMPTY_ENUM_WARN: &str = "deriving `FromFormValue` for empty enum";
 
-#[derive(Debug, Clone)]
-pub(crate) struct FieldMember<'f> {
-    field: &'f Field,
-    member: Member
-}
+const DB_CONN_NO_FIELDS_ERR: &str = "`DbConn` cannot be derived for unit structs";
+const DB_CONN_NOT_TUPLE_STRUCT_ERR: &str = "`DbConn` can only be derived for tuple structs";
+const DB_CONN_NO_GENERICS: &str = "structs with generics cannot derive `DbConn`";
+const DB_CONN_ONLY_STRUCTS: &str = "`DbConn` can only be derived for structs";
+const DB_CONN_NO_CONNECTION_SPECIFIED: &str = "`DbConn` derive requires #[connection_name = \"...\"] attribute";
 
 fn validate_input(input: DeriveInput) -> PResult<DataEnum> {
     // This derive doesn't support generics. Error out if there are generics.
@@ -53,6 +53,34 @@ fn validate_input(input: DeriveInput) -> PResult<DataEnum> {
     }
 
     Ok(data)
+}
+
+fn validate_db_conn_input(input: DeriveInput) -> PResult<DataStruct> {
+    if !input.generics.params.is_empty() {
+        return Err(input.generics.span().error(DB_CONN_NO_GENERICS));
+    }
+
+    let input_span = input.span();
+    let data = input.data.into_struct().ok_or_else(|| input_span.error(DB_CONN_ONLY_STRUCTS))?;
+
+    match data.fields {
+        Fields::Named(_) => return Err(data.fields.span().error(DB_CONN_NOT_TUPLE_STRUCT_ERR)),
+        _ => {},
+    };
+
+    if data.fields.is_empty() {
+        return Err(Span::call_site().error(DB_CONN_NO_FIELDS_ERR));
+    }
+
+    Ok(data)
+}
+
+fn get_connection_name(input: &DeriveInput) -> PResult<Ident> {
+    if input.attrs.is_empty() {
+        return Err(Span::call_site().error(DB_CONN_NO_CONNECTION_SPECIFIED));
+    }
+
+    Ok(Ident::new(input.attrs, input.attrs.span()))
 }
 
 fn real_derive_from_form_value(input: TokenStream) -> PResult<TokenStream> {
@@ -95,10 +123,34 @@ fn real_derive_from_form_value(input: TokenStream) -> PResult<TokenStream> {
     }.into())
 }
 
+fn real_derive_db_conn(input: TokenStream) -> PResult<TokenStream> {
+    let input: DeriveInput = syn::parse(input).map_err(|e| {
+        Span::call_site().error(format!("error: failed to parse input: {:?}", e))
+    })?;
+
+    let name = input.ident;
+    let struct_data = validate_db_conn_input(input)?;
+
+    // TODO: The proc macro
+
+    Ok(quote! {
+        mod scope1 {
+        }
+    }.into())
+}
+
 #[proc_macro_derive(FromFormValue)]
 pub fn derive_from_form_value(input: TokenStream) -> TokenStream {
     real_derive_from_form_value(input).unwrap_or_else(|diag| {
         diag.emit();
+        TokenStream::empty()
+    })
+}
+
+#[proc_macro_derive(DbConn, attributes(connection_name))]
+pub fn derive_db_conn(input: TokenStream) -> TokenStream {
+    real_derive_db_conn(input).unwrap_or_else(|diagnostic| {
+        diagnostic.emit();
         TokenStream::empty()
     })
 }
