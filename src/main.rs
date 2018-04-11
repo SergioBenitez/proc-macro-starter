@@ -12,5 +12,5 @@ pub struct Person {
 pub fn main() {
 	let p = Person { name: "john smith", age: 5 };
 	use rocket::http::uri::UriDisplay;
-	println!("{}", &p as &UriDisplay);
+	assert_eq!((&p as &UriDisplay).to_string(), "name=john%20smith&age=5");
 }
