@@ -19,33 +19,50 @@ use ext::*;
 use syn::*;
 
 const NO_GENERICS: &str = "structs with generics cannot derive `UriDisplay`";
-const ONLY_STRUCTS: &str = "`UriDisplay` can only be derived for structs";
-const NO_EMPTY_STRUCTS: &str = "`UriDisplay` cannot be derived for empty struct";
-const NO_UNIT_STRUCTS: &str = "`UriDisplay` can only be derived for unit structs";
+const NO_UNIONS: &str = "unions cannot derive `UriDisplay`";
+const NO_EMPTY_FIELDS: &str = "`UriDisplay` cannot be derived for structs or variants with no fields";
+const NO_NULLARY: &str = "`UriDisplay` cannot only be derived for nullary structs and enum variants";
+const NO_EMPTY_ENUMS: &str = "`UriDisplay` cannot only be derived for enums with no variants";
 const ONLY_ONE_UNNAMED: &str = "`UriDisplay` can be derived for tuple-like structs of length only 1";
 
-fn validate_struct(data_struct: &DataStruct, input: &DeriveInput) -> PResult<()> {
+const ONLY_STRUCTS: &str = "`UriDisplay` can only be derived for structs";
 
-    let fields = &data_struct.fields;
+fn validate_fields(fields: &Fields) -> PResult<()> {
 
     match fields {
         Fields::Named(fields_named) => {},
         Fields::Unnamed(fields_unnamed) => {
             if fields_unnamed.unnamed.len() > 1 {
-                return Err(input.span().error(ONLY_ONE_UNNAMED))
+                return Err(fields.span().error(ONLY_ONE_UNNAMED))
             }
         },
-        Fields::Unit => return Err(input.span().error(NO_UNIT_STRUCTS))
+        Fields::Unit => return Err(fields.span().error(NO_NULLARY))
     }
 
     // Reject empty structs.
     if fields.is_empty() {
-        return Err(input.span().error(NO_EMPTY_STRUCTS))
+        return Err(fields.span().error(NO_EMPTY_FIELDS))
     }
 
     Ok(())
 }
 
+fn validate_struct(data_struct: &DataStruct, input: &DeriveInput) -> PResult<()> {
+    validate_fields(&data_struct.fields)?;
+}
+
+fn validate_enum(data_enum: &DataEnum, input: &DeriveInput) -> PResult<()> {
+
+    if data_enum.variants.len() == 0 {
+        return input.span().error(NO_EMPTY_ENUMS);
+    }
+
+    for variant in data_enum.variants.iter() {
+        validate_fields(variant.fields)?;
+    }
+
+    Ok(())
+}
 
 fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
     // Parse the input `TokenStream` as a `syn::DeriveInput`, an AST.
@@ -66,11 +83,26 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
             validate_struct(data_struct, &input)?;
             real_derive_uri_display_value_for_struct(data_struct, &input)
         },
-        _ => Err(input.span().error(ONLY_STRUCTS))
+        Data::Enum(ref enum_struct) => {
+            validate_enum(enum_struct, &input)?;
+            real_derive_uri_display_value_for_enums(data_enum, &input)
+        },
+        _ => return Err(input.span().error(NO_UNIONS))
     }
 }
 
-// Precondition: input must be valid non-unit struct
+// Precondition: input must be valid enum
+fn real_derive_uri_display_value_for_enums(
+    data_enum: &DataEnum, input: &DeriveInput
+) -> PResult<TokenStream> {
+
+    let name = input.ident;
+    let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
+
+    Ok(TokenStream::empty())
+}
+
+// Precondition: input must be valid struct
 fn real_derive_uri_display_value_for_struct(
     data_struct: &DataStruct, input: &DeriveInput
 ) -> PResult<TokenStream> {
