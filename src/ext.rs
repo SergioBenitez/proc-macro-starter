@@ -1,4 +1,6 @@
 use syn::*;
+use FieldMember;
+use spanned::Spanned;
 
 pub trait MemberExt {
     fn named(&self) -> Option<&Ident>;
@@ -21,7 +23,7 @@ impl MemberExt for Member {
     }
 }
 
-pub trait FieldsExt {
+pub(crate) trait FieldsExt {
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
     fn named(&self) -> Option<&FieldsNamed>;
@@ -31,6 +33,7 @@ pub trait FieldsExt {
     fn is_unit(&self) -> bool;
     fn nth(&self, i: usize) -> Option<&Field>;
     fn find_member(&self, member: &Member) -> Option<&Field>;
+    fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f>;
 }
 
 impl FieldsExt for Fields {
@@ -73,6 +76,18 @@ impl FieldsExt for Fields {
             Fields::Unit => true,
             _ => false
         }
+    }
+
+    fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f> {
+        Box::new(self.iter().enumerate().map(|(index, field)| {
+            if let Some(ident) = field.ident {
+                FieldMember { field, member: Member::Named(ident) }
+            } else {
+                let index = Index { index: index as u32, span: field.span().into() };
+                let member = Member::Unnamed(index);
+                FieldMember { field, member }
+            }
+        }))
     }
 
     fn nth(&self, i: usize) -> Option<&Field> {
