@@ -10,6 +10,7 @@ extern crate rocket;
 mod parser;
 mod spanned;
 mod ext;
+mod codegen_ext;
 
 use parser::Result as PResult;
 use proc_macro::{Span, TokenStream};
@@ -26,6 +27,13 @@ const NO_EMPTY_ENUMS: &str = "`UriDisplay` cannot only be derived for enums with
 const ONLY_ONE_UNNAMED: &str = "`UriDisplay` can be derived for tuple-like structs of length only 1";
 
 const ONLY_STRUCTS: &str = "`UriDisplay` can only be derived for structs";
+
+
+#[derive(Debug, Clone)]
+pub(crate) struct FieldMember<'f> {
+    field: &'f Field,
+    member: Member
+}
 
 fn validate_fields(fields: &Fields) -> PResult<()> {
 
