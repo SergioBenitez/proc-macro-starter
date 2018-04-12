@@ -56,17 +56,17 @@ fn validate_fields(fields: &Fields) -> PResult<()> {
 }
 
 fn validate_struct(data_struct: &DataStruct, input: &DeriveInput) -> PResult<()> {
-    validate_fields(&data_struct.fields)?;
+    validate_fields(&data_struct.fields)
 }
 
 fn validate_enum(data_enum: &DataEnum, input: &DeriveInput) -> PResult<()> {
 
     if data_enum.variants.len() == 0 {
-        return input.span().error(NO_EMPTY_ENUMS);
+        return Err(input.span().error(NO_EMPTY_ENUMS));
     }
 
     for variant in data_enum.variants.iter() {
-        validate_fields(variant.fields)?;
+        validate_fields(&variant.fields)?;
     }
 
     Ok(())
@@ -91,8 +91,8 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
             validate_struct(data_struct, &input)?;
             real_derive_uri_display_value_for_struct(data_struct, &input)
         },
-        Data::Enum(ref enum_struct) => {
-            validate_enum(enum_struct, &input)?;
+        Data::Enum(ref data_enum) => {
+            validate_enum(data_enum, &input)?;
             real_derive_uri_display_value_for_enums(data_enum, &input)
         },
         _ => return Err(input.span().error(NO_UNIONS))
