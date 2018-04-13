@@ -18,6 +18,7 @@ use spanned::Spanned;
 
 use ext::*;
 use syn::*;
+use codegen_ext::*;
 
 const NO_GENERICS: &str = "structs with generics cannot derive `UriDisplay`";
 const NO_UNIONS: &str = "unions cannot derive `UriDisplay`";
@@ -25,8 +26,6 @@ const NO_EMPTY_FIELDS: &str = "`UriDisplay` cannot be derived for structs or var
 const NO_NULLARY: &str = "`UriDisplay` cannot only be derived for nullary structs and enum variants";
 const NO_EMPTY_ENUMS: &str = "`UriDisplay` cannot only be derived for enums with no variants";
 const ONLY_ONE_UNNAMED: &str = "`UriDisplay` can be derived for tuple-like structs of length only 1";
-
-const ONLY_STRUCTS: &str = "`UriDisplay` can only be derived for structs";
 
 
 #[derive(Debug, Clone)]
@@ -104,10 +103,38 @@ fn real_derive_uri_display_value_for_enums(
     data_enum: &DataEnum, input: &DeriveInput
 ) -> PResult<TokenStream> {
 
+    let uri_display_ident = Ident::from("UriDisplay");
     let name = input.ident;
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
+    let variants = &data_enum.variants;
+    let variant_idents = variants.iter().map(|v| v.ident);
+    let variant_fields = variants.iter().map(|v| v.fields.id_match_tokens());
+    let format_args = variants.iter().map(|v| v.fields.format_args_tokens(quote!(#uri_display_ident)));
+    let format_strings = variants.iter().map(|v| v.fields.to_format_string());
 
-    Ok(TokenStream::empty())
+    let name_repeated = ::std::iter::repeat(name);
+
+    // Generate the implementation.
+    Ok(quote! {
+        mod #scope {
+            extern crate std;
+            extern crate rocket;
+
+            use self::std::prelude::v1::*;
+            use self::std::fmt;
+            use self::rocket::http::uri::*;
+
+            impl UriDisplay for #name {
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    match *self {
+                        #(#name_repeated::#variant_idents #variant_fields => {
+                            write!(f, #format_strings, #format_args)
+                        }),*
+                    }
+                }
+            }
+        }
+    }.into())
 }
 
 // Precondition: input must be valid struct
@@ -144,7 +171,7 @@ fn real_derive_uri_display_value_for_unnamed_struct(
 
             impl UriDisplay for #name {
                 fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                  write!(f, "{}", &self.0 as &UriDisplay)
+                    write!(f, "{}", &self.0 as &UriDisplay)
                 }
             }
         }
@@ -162,6 +189,7 @@ fn real_derive_uri_display_value_for_named_struct(
                                                  .collect::<Vec<_>>()
                                                  .join("&");
 
+
     let name = input.ident;
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
     // Generate the implementation.
@@ -176,7 +204,7 @@ fn real_derive_uri_display_value_for_named_struct(
 
             impl UriDisplay for #name {
                 fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                  write!(f, #format_string, #(&self.#idents as &UriDisplay),*)
+                    write!(f, #format_string, #(&self.#idents as &UriDisplay),*)
                 }
             }
         }
