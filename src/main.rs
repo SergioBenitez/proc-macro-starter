@@ -13,10 +13,13 @@ pub struct Person {
 pub struct Animal(Person);
 
 #[derive(UriDisplay)]
+pub struct BigInt(u32);
+
+#[derive(UriDisplay)]
 pub enum Shape {
 	Rectangle(u32),
 	Circle(u32),
-	Sphere { center: u32, radius: Person }
+	Sphere { center: u32, radius: BigInt }
 }
 
 pub fn main() {
@@ -25,6 +28,9 @@ pub fn main() {
 	println!("{}", (&p as &UriDisplay).to_string());
 	assert_eq!((&p as &UriDisplay).to_string(), "name=john%20smith&age=5");
 
-	let r = Shape::Sphere { center: 3, radius: p };
+	let q = BigInt(6);
+	let r = Shape::Sphere { center: 3, radius: q };
 	println!("{}", (&r as &UriDisplay).to_string());
+
+	let z = q; // fails because q moved.
 }
