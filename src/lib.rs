@@ -19,39 +19,16 @@ use spanned::Spanned;
 use ext::*;
 use syn::*;
 
-const NO_FIELDS_ERR: &str = "variants in `FromFormValue` derives cannot have fields";
-const NO_GENERICS: &str = "enums with generics cannot derive `FromFormValue`";
-const ONLY_ENUMS: &str = "`FromFormValue` can only be derived for enums";
-const EMPTY_ENUM_WARN: &str = "deriving `FromFormValue` for empty enum";
-
 const DB_CONN_NO_FIELDS_ERR: &str = "`DbConn` cannot be derived for unit structs";
 const DB_CONN_NOT_TUPLE_STRUCT_ERR: &str = "`DbConn` can only be derived for tuple structs";
 const DB_CONN_NO_GENERICS: &str = "structs with generics cannot derive `DbConn`";
 const DB_CONN_ONLY_STRUCTS: &str = "`DbConn` can only be derived for structs";
+const DB_CONN_NO_CONNECTION_SPECIFIED: &str = "`DbConn` derive requires #[connection_name = \"...\"] attribute";
 
-fn validate_input(input: DeriveInput) -> PResult<DataEnum> {
-    // This derive doesn't support generics. Error out if there are generics.
-    if !input.generics.params.is_empty() {
-        return Err(input.generics.span().error(NO_GENERICS));
-    }
-
-    // This derive only works for enums. Error out if the input is not an enum.
-    let input_span = input.span();
-    let data = input.data.into_enum().ok_or_else(|| input_span.error(ONLY_ENUMS))?;
-
-    // This derive only works for variants that are nullary.
-    for variant in data.variants.iter() {
-        if !variant.fields.is_empty() {
-            return Err(variant.span().error(NO_FIELDS_ERR));
-        }
-    }
-
-    // Emit a warning if the enum is empty.
-    if data.variants.is_empty() {
-        Span::call_site().warning(EMPTY_ENUM_WARN).emit();
-    }
-
-    Ok(data)
+#[derive(Debug, Clone)]
+pub(crate) struct FieldMember<'f> {
+    field: &'f Field,
+    member: Member
 }
 
 fn validate_db_conn_input(input: DeriveInput) -> PResult<DataStruct> {
@@ -73,8 +50,6 @@ fn validate_db_conn_input(input: DeriveInput) -> PResult<DataStruct> {
 
     Ok(data_struct)
 }
-
-const DB_CONN_NO_CONNECTION_SPECIFIED: &str = "`DbConn` derive requires #[connection_name = \"...\"] attribute";
 
 // TODO: Get the attribute for the database name
 // TODO: Get the inner type for the database connection
