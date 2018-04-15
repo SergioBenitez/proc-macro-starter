@@ -28,7 +28,6 @@ const DB_CONN_NO_FIELDS_ERR: &str = "`DbConn` cannot be derived for unit structs
 const DB_CONN_NOT_TUPLE_STRUCT_ERR: &str = "`DbConn` can only be derived for tuple structs";
 const DB_CONN_NO_GENERICS: &str = "structs with generics cannot derive `DbConn`";
 const DB_CONN_ONLY_STRUCTS: &str = "`DbConn` can only be derived for structs";
-const DB_CONN_NO_CONNECTION_SPECIFIED: &str = "`DbConn` derive requires #[connection_name = \"...\"] attribute";
 
 fn validate_input(input: DeriveInput) -> PResult<DataEnum> {
     // This derive doesn't support generics. Error out if there are generics.
@@ -61,68 +60,24 @@ fn validate_db_conn_input(input: DeriveInput) -> PResult<DataStruct> {
     }
 
     let input_span = input.span();
-    let data = input.data.into_struct().ok_or_else(|| input_span.error(DB_CONN_ONLY_STRUCTS))?;
+    let data_struct = input.data.into_struct().ok_or_else(|| input_span.error(DB_CONN_ONLY_STRUCTS))?;
 
-    match data.fields {
-        Fields::Named(_) => return Err(data.fields.span().error(DB_CONN_NOT_TUPLE_STRUCT_ERR)),
+    match data_struct.fields {
+        Fields::Named(_) => return Err(data_struct.fields.span().error(DB_CONN_NOT_TUPLE_STRUCT_ERR)),
         _ => {},
     };
 
-    if data.fields.is_empty() {
+    if data_struct.fields.is_empty() {
         return Err(Span::call_site().error(DB_CONN_NO_FIELDS_ERR));
     }
 
-    Ok(data)
+    Ok(data_struct)
 }
 
-fn get_connection_name(input: &DeriveInput) -> PResult<Ident> {
-    if input.attrs.is_empty() {
-        return Err(Span::call_site().error(DB_CONN_NO_CONNECTION_SPECIFIED));
-    }
+const DB_CONN_NO_CONNECTION_SPECIFIED: &str = "`DbConn` derive requires #[connection_name = \"...\"] attribute";
 
-    Ok(Ident::new(input.attrs, input.attrs.span()))
-}
-
-fn real_derive_from_form_value(input: TokenStream) -> PResult<TokenStream> {
-    // Parse the input `TokenStream` as a `syn::DeriveInput`, an AST.
-    let input: DeriveInput = syn::parse(input).map_err(|e| {
-        Span::call_site().error(format!("error: failed to parse input: {:?}", e))
-    })?;
-
-    // Validate the enum.
-    let name = input.ident;
-    let enum_data = validate_input(input)?;
-
-    // Create iterators over the identifers as idents and as strings.
-    let variant_strs = enum_data.variants.iter().map(|v| v.ident.as_ref() as &str);
-    let variant_idents = enum_data.variants.iter().map(|v| v.ident);
-    let names = ::std::iter::repeat(name);
-
-    // Generate the implementation.
-    Ok(quote! {
-        mod scope {
-            extern crate std;
-            extern crate rocket;
-
-            use self::std::prelude::v1::*;
-            use self::rocket::request::FromFormValue;
-            use self::rocket::http::RawStr;
-
-            impl<'v> FromFormValue<'v> for #name {
-                type Error = &'v RawStr;
-
-                fn from_form_value(v: &'v RawStr) -> Result<Self, Self::Error> {
-                    #(if v.as_uncased_str() == #variant_strs {
-                        return Ok(#names::#variant_idents);
-                    })*
-
-                    Err(v)
-                }
-            }
-        }
-    }.into())
-}
-
+// TODO: Get the attribute for the database name
+// TODO: Get the inner type for the database connection
 fn real_derive_db_conn(input: TokenStream) -> PResult<TokenStream> {
     let input: DeriveInput = syn::parse(input).map_err(|e| {
         Span::call_site().error(format!("error: failed to parse input: {:?}", e))
@@ -134,20 +89,12 @@ fn real_derive_db_conn(input: TokenStream) -> PResult<TokenStream> {
     // TODO: The proc macro
 
     Ok(quote! {
-        mod scope1 {
+        mod scope {
         }
     }.into())
 }
 
-#[proc_macro_derive(FromFormValue)]
-pub fn derive_from_form_value(input: TokenStream) -> TokenStream {
-    real_derive_from_form_value(input).unwrap_or_else(|diag| {
-        diag.emit();
-        TokenStream::empty()
-    })
-}
-
-#[proc_macro_derive(DbConn, attributes(connection_name))]
+#[proc_macro_derive(DbConn, attributes(database))]
 pub fn derive_db_conn(input: TokenStream) -> TokenStream {
     real_derive_db_conn(input).unwrap_or_else(|diagnostic| {
         diagnostic.emit();
