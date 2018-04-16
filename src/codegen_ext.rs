@@ -9,7 +9,6 @@ pub trait CodegenFieldsExt {
     fn surround(&self, tokens: Tokens) -> Tokens;
     fn ignore_tokens(&self) -> Tokens;
     fn id_match_tokens(&self) -> Tokens;
-    fn format_args_tokens(&self, tokens: Tokens) -> Tokens;
     fn ref_match_tokens(&self) -> Tokens;
 }
 
@@ -66,16 +65,6 @@ impl CodegenFieldsExt for Fields {
             .map(field_to_ref);
 
         self.surround(quote!(#(ref #refs),*))
-    }
-
-    fn format_args_tokens(&self, tokens: Tokens) -> Tokens {
-        let idents = self.iter()
-            .enumerate()
-            .map(|t| field_to_ident(t.0, t.1));
-
-        let tokens_repeat = ::std::iter::repeat(tokens);
-
-        quote!(#(&#idents as &#tokens_repeat),*)
     }
 }
 

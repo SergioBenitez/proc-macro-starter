@@ -117,7 +117,6 @@ fn real_derive_uri_display_value_for_enums(
                 }
             },
             Fields::Named(_) => {
-                let ident_str = v.ident.to_string();
                 let field_ident_strs = v.fields.iter().map(|f| f.ident.unwrap().to_string());
                 quote! {
                     #(f.with_prefix(#field_ident_strs, |_f| _UriDisplay::fmt(#match_field_idents, _f))?;)*
