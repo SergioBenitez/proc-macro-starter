@@ -10,7 +10,7 @@ pub trait CodegenFieldsExt {
     fn ignore_tokens(&self) -> Tokens;
     fn id_match_tokens(&self) -> Tokens;
     fn format_args_tokens(&self, tokens: Tokens) -> Tokens;
-    fn to_format_string(&self) -> String;
+    fn ref_match_tokens(&self) -> Tokens;
 }
 
 pub fn field_to_ident(i: usize, field: &Field) -> Ident {
@@ -20,6 +20,15 @@ pub fn field_to_ident(i: usize, field: &Field) -> Ident {
     };
 
     Ident::new(&name, field.span().into())
+}
+
+pub fn field_to_ref((i, field): (usize, &Field)) -> Tokens {
+    let ident_str = match field.ident {
+        Some(id) => format!("{}", id),
+        None => format!("_{}", i)
+    };
+    let ident = Ident::new(&ident_str, field.span().into());
+    quote!(#ident)
 }
 
 pub fn field_to_match((i, field): (usize, &Field)) -> Tokens {
@@ -51,6 +60,14 @@ impl CodegenFieldsExt for Fields {
         self.surround(quote!(#(#idents),*))
     }
 
+    fn ref_match_tokens(&self) -> Tokens {
+        let refs = self.iter()
+            .enumerate()
+            .map(field_to_ref);
+
+        self.surround(quote!(#(ref #refs),*))
+    }
+
     fn format_args_tokens(&self, tokens: Tokens) -> Tokens {
         let idents = self.iter()
             .enumerate()
@@ -59,18 +76,6 @@ impl CodegenFieldsExt for Fields {
         let tokens_repeat = ::std::iter::repeat(tokens);
 
         quote!(#(&#idents as &#tokens_repeat),*)
-    }
-
-    fn to_format_string(&self) -> String {
-        match *self {
-            Fields::Named(ref fields_named) => {
-                fields_named.named.iter().map(|v| v.ident.as_ref().unwrap().to_string() + "={}")
-                            .collect::<Vec<_>>()
-                            .join("&")
-            },
-            Fields::Unnamed(_) => "{}".to_owned(),
-            Fields::Unit => "".to_owned()
-        }
     }
 }
 

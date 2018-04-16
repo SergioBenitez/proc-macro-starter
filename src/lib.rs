@@ -37,7 +37,7 @@ pub(crate) struct FieldMember<'f> {
 fn validate_fields(fields: &Fields) -> PResult<()> {
 
     match fields {
-        Fields::Named(fields_named) => {},
+        Fields::Named(_) => {},
         Fields::Unnamed(fields_unnamed) => {
             if fields_unnamed.unnamed.len() > 1 {
                 return Err(fields.span().error(ONLY_ONE_UNNAMED))
@@ -83,9 +83,7 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
         return Err(input.generics.span().error(NO_GENERICS));
     }
 
-    let inp = &input;
-
-    match inp.data {
+    match input.data {
         Data::Struct(ref data_struct) => {
             validate_struct(data_struct, &input)?;
             real_derive_uri_display_value_for_struct(data_struct, &input)
@@ -103,14 +101,32 @@ fn real_derive_uri_display_value_for_enums(
     data_enum: &DataEnum, input: &DeriveInput
 ) -> PResult<TokenStream> {
 
-    let uri_display_ident = Ident::from("UriDisplay");
     let name = input.ident;
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
     let variants = &data_enum.variants;
     let variant_idents = variants.iter().map(|v| v.ident);
-    let variant_fields = variants.iter().map(|v| v.fields.id_match_tokens());
-    let format_args = variants.iter().map(|v| v.fields.format_args_tokens(quote!(#uri_display_ident)));
-    let format_strings = variants.iter().map(|v| v.fields.to_format_string());
+    let variant_fields = variants.iter().map(|v| v.fields.ref_match_tokens());
+
+    let variant_match_bodies = variants.iter().map(|v| {
+        let match_field_idents = v.fields.iter().enumerate().map(field_to_ref);
+        match v.fields {
+            Fields::Unnamed(_) => {
+                quote! {
+                    #(_UriDisplay::fmt(#match_field_idents, f)?;)*
+                    Ok(())
+                }
+            },
+            Fields::Named(_) => {
+                let ident_str = v.ident.to_string();
+                let field_ident_strs = v.fields.iter().map(|f| f.ident.unwrap().to_string());
+                quote! {
+                    #(f.with_prefix(#field_ident_strs, |_f| _UriDisplay::fmt(#match_field_idents, _f))?;)*
+                    Ok(())
+                }
+            },
+            Fields::Unit => panic!("This code path is never reached")
+        }
+    });
 
     let name_repeated = ::std::iter::repeat(name);
 
@@ -124,11 +140,11 @@ fn real_derive_uri_display_value_for_enums(
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            impl UriDisplay for #name {
-                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            impl _UriDisplay for #name {
+                fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
                     match *self {
                         #(#name_repeated::#variant_idents #variant_fields => {
-                            write!(f, #format_strings, #format_args)
+                            #variant_match_bodies
                         }),*
                     }
                 }
@@ -169,9 +185,9 @@ fn real_derive_uri_display_value_for_unnamed_struct(
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            impl UriDisplay for #name {
-                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                    write!(f, "{}", &self.0 as &UriDisplay)
+            impl _UriDisplay for #name {
+                fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+                    _UriDisplay::fmt(&self.0, f)
                 }
             }
         }
@@ -184,11 +200,7 @@ fn real_derive_uri_display_value_for_named_struct(
 
     // Enumerate all the field names in the struct.
     let idents = fields_named.named.iter().map(|v| v.ident.as_ref().expect("named field"));
-    // Generate format string.
-    let format_string = fields_named.named.iter().map(|v| v.ident.as_ref().unwrap().to_string() + "={}")
-                                                 .collect::<Vec<_>>()
-                                                 .join("&");
-
+    let idents_str = fields_named.named.iter().map(|v| v.ident.as_ref().unwrap().to_string());
 
     let name = input.ident;
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
@@ -202,16 +214,17 @@ fn real_derive_uri_display_value_for_named_struct(
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            impl UriDisplay for #name {
-                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                    write!(f, #format_string, #(&self.#idents as &UriDisplay),*)
+            impl _UriDisplay for #name {
+                fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+                    #(f.with_prefix(#idents_str, |mut _f| _UriDisplay::fmt(&self.#idents, &mut _f) )?;)*
+                    Ok(())
                 }
             }
         }
     }.into())
 }
 
-#[proc_macro_derive(UriDisplay)]
+#[proc_macro_derive(_UriDisplay)]
 pub fn derive_uri_display_value(input: TokenStream) -> TokenStream {
     real_derive_uri_display_value(input).unwrap_or_else(|diag| {
        diag.emit();
