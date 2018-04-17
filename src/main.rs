@@ -97,6 +97,14 @@ impl<'a> fmt::Display for &'a _UriDisplay {
     }
 }
 
+#[derive(_UriDisplay)]
+pub struct Name<'a>(&'a str);
+
+#[derive(_UriDisplay)]
+pub struct X<'a, 'b> where 'b: 'a {
+    a: &'a str,
+    b: &'b str
+}
 
 #[derive(_UriDisplay)]
 pub struct Animal {

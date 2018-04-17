@@ -20,7 +20,7 @@ use ext::*;
 use syn::*;
 use codegen_ext::*;
 
-const NO_GENERICS: &str = "structs with generics cannot derive `UriDisplay`";
+const NO_NON_LIFETIME_GENERICS: &str = "`UriDisplay` cannot be derived for non-lifetime generics";
 const NO_UNIONS: &str = "unions cannot derive `UriDisplay`";
 const NO_EMPTY_FIELDS: &str = "`UriDisplay` cannot be derived for structs or variants with no fields";
 const NO_NULLARY: &str = "`UriDisplay` cannot only be derived for nullary structs and enum variants";
@@ -78,9 +78,12 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
     })?;
 
 
-    // This derive doesn't support generics. Error out if there are generics.
-    if !input.generics.params.is_empty() {
-        return Err(input.generics.span().error(NO_GENERICS));
+    // This derive doesn't support non-lifetime generics.
+    for param in input.generics.params.iter() {
+        match param {
+            GenericParam::Lifetime(a) => { },
+            _ => return Err(param.span().error(NO_NON_LIFETIME_GENERICS))
+        }
     }
 
     match input.data {
@@ -175,6 +178,9 @@ fn real_derive_uri_display_value_for_unnamed_struct(
 
     let name = input.ident;
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
+
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
     Ok(quote! {
         mod #scope {
             extern crate std;
@@ -184,7 +190,7 @@ fn real_derive_uri_display_value_for_unnamed_struct(
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            impl _UriDisplay for #name {
+            impl #impl_generics _UriDisplay for #name #ty_generics #where_clause {
                 fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
                     _UriDisplay::fmt(&self.0, f)
                 }
@@ -201,8 +207,11 @@ fn real_derive_uri_display_value_for_named_struct(
     let idents = fields_named.named.iter().map(|v| v.ident.as_ref().expect("named field"));
     let idents_str = fields_named.named.iter().map(|v| v.ident.as_ref().unwrap().to_string());
 
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
     let name = input.ident;
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
+
     // Generate the implementation.
     Ok(quote! {
         mod #scope {
@@ -213,7 +222,7 @@ fn real_derive_uri_display_value_for_named_struct(
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            impl _UriDisplay for #name {
+            impl #impl_generics _UriDisplay for #name #ty_generics #where_clause {
                 fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
                     #(f.with_prefix(#idents_str, |mut _f| _UriDisplay::fmt(&self.#idents, &mut _f) )?;)*
                     Ok(())
