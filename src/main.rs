@@ -14,7 +14,8 @@ pub struct UriFormatter<'f, 'i: 'f> {
 }
 
 impl<'f, 'i: 'f> UriFormatter<'f, 'i> {
-    fn write_raw(&mut self, s: &str) -> fmt::Result {
+    pub fn write_raw<S: AsRef<str>>(&mut self, s: S) -> fmt::Result {
+        let s = s.as_ref();
         if self.fresh && !self.prefixes.is_empty() {
             if self.previous {
                 self.inner.write_str("&")?;
@@ -35,16 +36,38 @@ impl<'f, 'i: 'f> UriFormatter<'f, 'i> {
 
         self.inner.write_str(s)
     }
-    fn with_prefix<F>(&mut self, prefix: &'static str, f: F) -> fmt::Result
+
+    fn with_prefix<F>(&mut self, prefix: &str, f: F) -> fmt::Result
         where F: FnOnce(&mut Self) -> fmt::Result
     {
         self.fresh = true;
+
+        // TODO: PROOF OF CORRECTNESS.
+        let prefix: &'static str = unsafe { ::std::mem::transmute(prefix) };
         self.prefixes.push(prefix);
 
         let result = f(self);
 
         self.prefixes.pop();
         result
+    }
+
+    fn write_seq_value<T: _UriDisplay>(&mut self, name: &str, value: T) -> fmt::Result {
+        unimplemented!()
+    }
+
+    fn write_named_seq_value<T: _UriDisplay>(&mut self, name: &str, value: T) -> fmt::Result {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn write_named_value<T: _UriDisplay>(&mut self, name: &str, value: T) -> fmt::Result {
+        self.with_prefix(name, |f| f.write_value(value))
+    }
+
+    #[inline]
+    pub fn write_value<T: _UriDisplay>(&mut self, value: T) -> fmt::Result {
+        _UriDisplay::fmt(&value, self)
     }
 }
 
@@ -125,7 +148,7 @@ pub struct Person {
 }
 
 #[derive(_UriDisplay)]
-pub struct BigInt{
+pub struct BigInt {
     int: u8
 }
 
@@ -146,7 +169,6 @@ pub enum Shape {
 }
 
 pub fn main() {
-
     let p = Animal{ name: "clifford", color: "red" };
     let e = Person { name: "emily", age: 5, pet : p };
     println!("{}", &e as &_UriDisplay);
