@@ -108,7 +108,7 @@ fn real_derive_uri_display_value_for_enums(
     let variant_fields = variants.iter().map(|v| v.fields.ref_match_tokens());
 
     let variant_match_bodies = variants.iter().map(|v| {
-        let match_field_idents = v.fields.iter().enumerate().map(field_to_ref);
+        let match_field_idents = v.fields.iter().enumerate().map(|f| field_to_ident(f.0, f.1));
         match v.fields {
             Fields::Unnamed(_) => {
                 quote! {

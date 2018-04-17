@@ -21,20 +21,20 @@ pub fn field_to_ident(i: usize, field: &Field) -> Ident {
     Ident::new(&name, field.span().into())
 }
 
-pub fn field_to_ref((i, field): (usize, &Field)) -> Tokens {
-    let ident_str = match field.ident {
-        Some(id) => format!("{}", id),
-        None => format!("_{}", i)
-    };
-    let ident = Ident::new(&ident_str, field.span().into());
-    quote!(#ident)
-}
 
 pub fn field_to_match((i, field): (usize, &Field)) -> Tokens {
     let ident = field_to_ident(i, field);
     match field.ident {
         Some(id) => quote!(#id: #ident),
         None => quote!(#ident)
+    }
+}
+
+pub fn field_to_match_ref((i, field): (usize, &Field)) -> Tokens {
+    let ident = field_to_ident(i, field);
+    match field.ident {
+        Some(id) => quote!(#id: ref #ident),
+        None => quote!(ref #ident)
     }
 }
 
@@ -62,9 +62,9 @@ impl CodegenFieldsExt for Fields {
     fn ref_match_tokens(&self) -> Tokens {
         let refs = self.iter()
             .enumerate()
-            .map(field_to_ref);
+            .map(field_to_match_ref);
 
-        self.surround(quote!(#(ref #refs),*))
+        self.surround(quote!(#(#refs),*))
     }
 }
 
