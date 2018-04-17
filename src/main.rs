@@ -98,6 +98,11 @@ impl<'a> fmt::Display for &'a _UriDisplay {
 }
 
 #[derive(_UriDisplay)]
+enum Test<'a> {
+    Foo(&'a u8)
+}
+
+#[derive(_UriDisplay)]
 pub struct Name<'a>(&'a str);
 
 #[derive(_UriDisplay)]

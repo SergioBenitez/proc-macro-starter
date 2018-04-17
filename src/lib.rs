@@ -132,6 +132,8 @@ fn real_derive_uri_display_value_for_enums(
 
     let name_repeated = ::std::iter::repeat(name);
 
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
     // Generate the implementation.
     Ok(quote! {
         mod #scope {
@@ -142,7 +144,7 @@ fn real_derive_uri_display_value_for_enums(
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            impl _UriDisplay for #name {
+            impl #impl_generics _UriDisplay for #name #ty_generics #where_clause {
                 fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
                     match *self {
                         #(#name_repeated::#variant_idents #variant_fields => {
