@@ -1,14 +1,16 @@
 #![feature(proc_macro)]
 
 #[macro_use] extern crate proc_macro_starter;
+extern crate smallvec;
 extern crate rocket;
 
 use std::fmt;
+use smallvec::SmallVec;
 use rocket::http::uri::Uri;
 
 // TODO: rename to Formatter
 pub struct Formatter<'f, 'i: 'f> {
-    prefixes: Vec<&'static str>,
+    prefixes: SmallVec::<[&'static str; 3]>,
     inner: &'f mut fmt::Formatter<'i>,
     previous: bool,
     fresh: bool
@@ -111,7 +113,7 @@ impl<'a, T: _UriDisplay> _UriDisplay for &'a T {
 impl<'a> fmt::Display for &'a _UriDisplay {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut formatter = Formatter {
-            prefixes: Vec::new(),
+            prefixes: SmallVec::new(),
             inner: f,
             previous: false,
             fresh: true,

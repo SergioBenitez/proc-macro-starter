@@ -16,3 +16,4 @@ quote = "0.5.1"
 proc-macro2 = { version = "0.3.3", features = ["nightly"] }
 syn = { version = "0.13", features = ["full", "extra-traits"] }
 rocket = { git = "https://github.com/SergioBenitez/Rocket" }
+smallvec = "0.6.0"
