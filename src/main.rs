@@ -7,14 +7,14 @@ use std::fmt;
 use rocket::http::uri::Uri;
 
 // TODO: rename to Formatter
-pub struct UriFormatter<'f, 'i: 'f> {
+pub struct Formatter<'f, 'i: 'f> {
     prefixes: Vec<&'static str>,
     inner: &'f mut fmt::Formatter<'i>,
     previous: bool,
     fresh: bool
 }
 
-impl<'f, 'i: 'f> UriFormatter<'f, 'i> {
+impl<'f, 'i: 'f> Formatter<'f, 'i> {
     pub fn write_raw<S: AsRef<str>>(&mut self, s: S) -> fmt::Result {
         let s = s.as_ref();
         if self.fresh && !self.prefixes.is_empty() {
@@ -72,7 +72,7 @@ impl<'f, 'i: 'f> UriFormatter<'f, 'i> {
     }
 }
 
-impl<'f, 'i: 'f> fmt::Write for UriFormatter<'f, 'i> {
+impl<'f, 'i: 'f> fmt::Write for Formatter<'f, 'i> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // println!("\nfmt::write_str({})", s);
         self.write_raw(s)
@@ -80,44 +80,44 @@ impl<'f, 'i: 'f> fmt::Write for UriFormatter<'f, 'i> {
 }
 
 pub trait _UriDisplay {
-    fn fmt(&self, f: &mut UriFormatter) -> fmt::Result;
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result;
 }
 
 impl _UriDisplay for str {
-    fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.write_raw(&Uri::percent_encode(self))
     }
 }
 
 impl<'a> _UriDisplay for &'a str {
-    fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         _UriDisplay::fmt(*self, f)
     }
 }
 
 impl _UriDisplay for u8 {
-    fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use fmt::Write;
         write!(f, "{}", self)
     }
 }
 
 impl<'a, T: _UriDisplay> _UriDisplay for &'a T {
-    fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         _UriDisplay::fmt(*self, f)
     }
 }
 
 impl<'a> fmt::Display for &'a _UriDisplay {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut uri_formatter = UriFormatter {
+        let mut formatter = Formatter {
             prefixes: Vec::new(),
             inner: f,
             previous: false,
             fresh: true,
         };
 
-        _UriDisplay::fmt(*self, &mut uri_formatter)
+        _UriDisplay::fmt(*self, &mut formatter)
     }
 }
 
@@ -154,7 +154,7 @@ pub struct BigInt(u8);
 pub struct Complex(u8, u8);
 
 impl _UriDisplay for Complex {
-    fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use fmt::Write;
         write!(f, "{}+{}", self.0, self.1)
     }

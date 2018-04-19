@@ -148,7 +148,7 @@ fn wrap_in_fmt_and_impl(tokens: Tokens, input: &DeriveInput) -> Tokens {
 
 fn wrap_in_fmt(tokens: Tokens) -> Tokens {
     quote! {
-        fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
             #tokens
         }
     }
