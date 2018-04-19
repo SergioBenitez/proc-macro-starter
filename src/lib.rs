@@ -19,6 +19,7 @@ use spanned::Spanned;
 use ext::*;
 use syn::*;
 use codegen_ext::*;
+use quote::Tokens;
 
 const NO_NON_LIFETIME_GENERICS: &str = "`UriDisplay` cannot be derived for non-lifetime generics";
 const NO_UNIONS: &str = "unions cannot derive `UriDisplay`";
@@ -26,13 +27,6 @@ const NO_EMPTY_FIELDS: &str = "`UriDisplay` cannot be derived for structs or var
 const NO_NULLARY: &str = "`UriDisplay` cannot only be derived for nullary structs and enum variants";
 const NO_EMPTY_ENUMS: &str = "`UriDisplay` cannot only be derived for enums with no variants";
 const ONLY_ONE_UNNAMED: &str = "`UriDisplay` can be derived for tuple-like structs of length only 1";
-
-
-#[derive(Debug, Clone)]
-pub(crate) struct FieldMember<'f> {
-    field: &'f Field,
-    member: Member
-}
 
 fn validate_fields(fields: &Fields) -> PResult<()> {
 
@@ -59,15 +53,12 @@ fn validate_struct(data_struct: &DataStruct, input: &DeriveInput) -> PResult<()>
 }
 
 fn validate_enum(data_enum: &DataEnum, input: &DeriveInput) -> PResult<()> {
-
     if data_enum.variants.len() == 0 {
         return Err(input.span().error(NO_EMPTY_ENUMS));
     }
-
     for variant in data_enum.variants.iter() {
         validate_fields(&variant.fields)?;
     }
-
     Ok(())
 }
 
@@ -81,7 +72,7 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
     // This derive doesn't support non-lifetime generics.
     for param in input.generics.params.iter() {
         match param {
-            GenericParam::Lifetime(a) => { },
+            GenericParam::Lifetime(_) => { },
             _ => return Err(param.span().error(NO_NON_LIFETIME_GENERICS))
         }
     }
@@ -104,57 +95,21 @@ fn real_derive_uri_display_value_for_enums(
     data_enum: &DataEnum, input: &DeriveInput
 ) -> PResult<TokenStream> {
 
-    let name = input.ident;
-    let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
     let variants = &data_enum.variants;
     let variant_idents = variants.iter().map(|v| v.ident);
     let variant_fields = variants.iter().map(|v| v.fields.ref_match_tokens());
+    let variant_match_bodies = variants.iter().map(|v| fields_to_fmt_body(&v.fields, FieldOrigin::Variant));
+    let name_repeated = ::std::iter::repeat(input.ident);
 
-    let variant_match_bodies = variants.iter().map(|v| {
-        let match_field_idents = v.fields.iter().enumerate().map(|f| field_to_ident(f.0, f.1));
-        match v.fields {
-            Fields::Unnamed(_) => {
-                quote! {
-                    #(_UriDisplay::fmt(#match_field_idents, f)?;)*
-                    Ok(())
-                }
-            },
-            Fields::Named(_) => {
-                let field_ident_strs = v.fields.iter().map(|f| f.ident.unwrap().to_string());
-                quote! {
-                    #(f.with_prefix(#field_ident_strs, |_f| _UriDisplay::fmt(#match_field_idents, _f))?;)*
-                    Ok(())
-                }
-            },
-            Fields::Unit => panic!("This code path is never reached")
+    let body = quote! {
+        match *self {
+            #(#name_repeated::#variant_idents #variant_fields => {
+                #variant_match_bodies
+            }),*
         }
-    });
+    };
 
-    let name_repeated = ::std::iter::repeat(name);
-
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
-    // Generate the implementation.
-    Ok(quote! {
-        mod #scope {
-            extern crate std;
-            extern crate rocket;
-
-            use self::std::prelude::v1::*;
-            use self::std::fmt;
-            use self::rocket::http::uri::*;
-
-            impl #impl_generics _UriDisplay for #name #ty_generics #where_clause {
-                fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
-                    match *self {
-                        #(#name_repeated::#variant_idents #variant_fields => {
-                            #variant_match_bodies
-                        }),*
-                    }
-                }
-            }
-        }
-    }.into())
+    Ok(wrap_in_fmt_and_impl(body, input).into())
 }
 
 // Precondition: input must be valid struct
@@ -162,60 +117,49 @@ fn real_derive_uri_display_value_for_struct(
     data_struct: &DataStruct, input: &DeriveInput
 ) -> PResult<TokenStream> {
 
-    let fields = &data_struct.fields;
+    let fmt_body = fields_to_fmt_body(&data_struct.fields, FieldOrigin::Struct);
+    Ok(wrap_in_fmt_and_impl(fmt_body, input).into())
+}
+
+fn fields_to_fmt_body(fields: &Fields, origin: FieldOrigin) -> Tokens {
+    let vars = fields.iter().enumerate().map(|(i, field)| field.to_variable_tokens(i, origin));
 
     match fields {
-        Fields::Named(fields_named) =>
-            real_derive_uri_display_value_for_named_struct(&fields_named, data_struct, input),
-        Fields::Unnamed(fields_unnamed) =>
-            real_derive_uri_display_value_for_unnamed_struct(&fields_unnamed, data_struct, input),
-        _ => panic!("This codepath is never reached.") // TODO: something better
+        Fields::Named(ref fields_named) => {
+            let names = fields_named.named.iter().map(|field| field.ident.as_ref().unwrap().to_string());
+            quote! {
+                #(f.with_prefix(#names, |mut _f| _UriDisplay::fmt(&#vars, &mut _f) )?;)*
+                Ok(())
+            }
+        },
+        Fields::Unnamed(_) => {
+            quote! {
+                #(_UriDisplay::fmt(&#vars, f)?;)*
+                Ok(())
+            }
+        },
+        _ => panic!("This code path is never reached!")
     }
 }
 
-// Precondition: there is exactly one field in the struct
-fn real_derive_uri_display_value_for_unnamed_struct(
-    fields_unnamed: &FieldsUnnamed, data_struct: &DataStruct, input: &DeriveInput
-) -> PResult<TokenStream> {
-
-    let name = input.ident;
-    let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
-
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
-    Ok(quote! {
-        mod #scope {
-            extern crate std;
-            extern crate rocket;
-
-            use self::std::prelude::v1::*;
-            use self::std::fmt;
-            use self::rocket::http::uri::*;
-
-            impl #impl_generics _UriDisplay for #name #ty_generics #where_clause {
-                fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
-                    _UriDisplay::fmt(&self.0, f)
-                }
-            }
-        }
-    }.into())
+fn wrap_in_fmt_and_impl(tokens: Tokens, input: &DeriveInput) -> Tokens {
+    wrap_in_impl(wrap_in_fmt(tokens), input)
 }
 
-fn real_derive_uri_display_value_for_named_struct(
-    fields_named: &FieldsNamed, data_struct: &DataStruct, input: &DeriveInput
-) -> PResult<TokenStream> {
+fn wrap_in_fmt(tokens: Tokens) -> Tokens {
+    quote! {
+        fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
+            #tokens
+        }
+    }
+}
 
-    // Enumerate all the field names in the struct.
-    let idents = fields_named.named.iter().map(|v| v.ident.as_ref().expect("named field"));
-    let idents_str = fields_named.named.iter().map(|v| v.ident.as_ref().unwrap().to_string());
-
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
+fn wrap_in_impl(tokens: Tokens, input: &DeriveInput) -> Tokens {
     let name = input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
 
-    // Generate the implementation.
-    Ok(quote! {
+    quote! {
         mod #scope {
             extern crate std;
             extern crate rocket;
@@ -225,13 +169,10 @@ fn real_derive_uri_display_value_for_named_struct(
             use self::rocket::http::uri::*;
 
             impl #impl_generics _UriDisplay for #name #ty_generics #where_clause {
-                fn fmt(&self, f: &mut UriFormatter) -> fmt::Result {
-                    #(f.with_prefix(#idents_str, |mut _f| _UriDisplay::fmt(&self.#idents, &mut _f) )?;)*
-                    Ok(())
-                }
+                #tokens
             }
         }
-    }.into())
+    }
 }
 
 #[proc_macro_derive(_UriDisplay)]

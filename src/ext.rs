@@ -1,6 +1,11 @@
 use syn::*;
-use FieldMember;
 use spanned::Spanned;
+
+#[derive(Debug, Clone)]
+pub struct FieldMember<'f> {
+    pub field: &'f Field,
+    pub  member: Member
+}
 
 pub trait MemberExt {
     fn named(&self) -> Option<&Ident>;
@@ -19,6 +24,22 @@ impl MemberExt for Member {
         match *self {
             Member::Unnamed(ref unnamed) => Some(unnamed),
             _ => None
+        }
+    }
+}
+
+pub(crate) trait FieldExt {
+    fn to_field_member(&self, i: usize) -> FieldMember;
+}
+
+impl FieldExt for Field {
+    fn to_field_member(&self, i: usize) -> FieldMember {
+        if let Some(ident) = self.ident {
+            FieldMember { field: &self, member: Member::Named(ident) }
+        } else {
+            let index = Index { index: i as u32, span: self.span().into() };
+            let member = Member::Unnamed(index);
+            FieldMember { field: &self, member: member }
         }
     }
 }
@@ -79,15 +100,7 @@ impl FieldsExt for Fields {
     }
 
     fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f> {
-        Box::new(self.iter().enumerate().map(|(index, field)| {
-            if let Some(ident) = field.ident {
-                FieldMember { field, member: Member::Named(ident) }
-            } else {
-                let index = Index { index: index as u32, span: field.span().into() };
-                let member = Member::Unnamed(index);
-                FieldMember { field, member }
-            }
-        }))
+        Box::new(self.iter().enumerate().map(|(index, field)| field.to_field_member(index)))
     }
 
     fn nth(&self, i: usize) -> Option<&Field> {

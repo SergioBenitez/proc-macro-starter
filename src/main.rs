@@ -6,6 +6,7 @@ extern crate rocket;
 use std::fmt;
 use rocket::http::uri::Uri;
 
+// TODO: rename to Formatter
 pub struct UriFormatter<'f, 'i: 'f> {
     prefixes: Vec<&'static str>,
     inner: &'f mut fmt::Formatter<'i>,
@@ -148,9 +149,7 @@ pub struct Person {
 }
 
 #[derive(_UriDisplay)]
-pub struct BigInt {
-    int: u8
-}
+pub struct BigInt(u8);
 
 pub struct Complex(u8, u8);
 
@@ -175,7 +174,7 @@ pub fn main() {
     assert_eq!((&e as &_UriDisplay).to_string(), "name=emily&age=5&pet.name=clifford&pet.color=red");
 
     let c = Complex(1, 2);
-    let s = Shape::Sphere { radius: c, center: BigInt { int: 3 } };
+    let s = Shape::Sphere { radius: c, center: BigInt(3) };
     println!("{}", (&s as &_UriDisplay));
-    assert_eq!((&s as &_UriDisplay).to_string(), "radius=1+2&center.int=3");
+    assert_eq!((&s as &_UriDisplay).to_string(), "radius=1+2&center=3");
 }
