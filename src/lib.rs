@@ -78,37 +78,22 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
         }
     }
 
-    match input.data {
+    let tokens = match input.data {
         Data::Struct(ref data_struct) => {
             validate_struct(data_struct, &input)?;
-            real_derive_uri_display_value_for_struct(data_struct, &input)
+            let struct_node = StructNode::parse(data_struct, &input.ident, &input.generics);
+            quote!(#struct_node)
         },
         Data::Enum(ref data_enum) => {
             validate_enum(data_enum, &input)?;
-            real_derive_uri_display_value_for_enums(data_enum, &input)
+            let enum_node = EnumNode::parse(data_enum, &input.ident, &input.generics);
+            quote!(#enum_node)
         },
         _ => return Err(input.span().error(NO_UNIONS))
-    }
-}
+    };
 
-// Precondition: input must be valid enum
-fn real_derive_uri_display_value_for_enums(
-    data_enum: &DataEnum, input: &DeriveInput
-) -> PResult<TokenStream> {
-    let enum_node = EnumNode::parse(data_enum, &input.ident, &input.generics);
-    let tokens = quote!(#enum_node);
-    Ok(tokens.into())
+    Ok(tokens.into())   
 }
-
-// Precondition: input must be valid struct
-fn real_derive_uri_display_value_for_struct(
-    data_struct: &DataStruct, input: &DeriveInput
-) -> PResult<TokenStream> {
-    let struct_node = StructNode::parse(data_struct, &input.ident, &input.generics);
-    let tokens = quote!(#struct_node);
-    Ok(tokens.into())
-}
-
 
 #[proc_macro_derive(_UriDisplay)]
 pub fn derive_uri_display_value(input: TokenStream) -> TokenStream {
