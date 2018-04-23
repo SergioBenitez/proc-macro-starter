@@ -51,6 +51,7 @@ impl<'f> ToTokens for FieldMembersNode<'f> {
 			#(#uri_display_calls)*
 			Ok(())
 		};
+
 		tokens.append_all(concat_with_result.into_iter());
 	}
 }
@@ -114,16 +115,17 @@ impl<'a, 'f, 'g>EnumNode<'a, 'f, 'g> {
 impl<'a, 'f, 'g> ToTokens for EnumNode<'a, 'f, 'g> {
 	fn to_tokens(&self, tokens: &mut Tokens) {	
 		let enum_name = &self.name;
-		let arms = self.variants.iter().map(|variant| {
-			let arm_name = variant.name;
-			let match_ref = variant.field_members.members.iter().enumerate().map(|(i, fm)| (i, fm.field)).map(field_to_match_ref);
-			let refs = match variant.field_members.named {
-				true => quote!({#(#match_ref),*}),
-				false => quote!((#(#match_ref),*))
+		let arms = self.variants.iter().map(|v| {
+			let arm_name = v.name;
+			let match_refs = v.field_members.members.iter().enumerate().map(|(i, fm)| (i, fm.field)).map(field_to_match_ref);
+			let refs = match v.field_members.named { // surround?
+				true => quote!({#(#match_refs),*}),
+				false => quote!((#(#match_refs),*))
 			};
-			let field_members = &variant.field_members;
+			let field_members = &v.field_members;
+			let uri_display_body_for_arm = quote!(#field_members);
 			quote! {
-				#enum_name::#arm_name #refs => { #field_members }
+				#enum_name::#arm_name #refs => { #uri_display_body_for_arm }
 			}
 		});
 		let uri_display_body = quote! {
