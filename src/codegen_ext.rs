@@ -3,16 +3,6 @@ use ext::*;
 use quote::Tokens;
 use spanned::Spanned;
 
-#[derive(Clone, Copy)]
-pub enum FieldOrigin {
-    Variant,
-    Struct
-}
-
-pub trait CodegenFieldExt {
-    fn to_variable_tokens(&self, i: usize, origin: FieldOrigin) -> Tokens;
-}
-
 pub trait CodegenFieldsExt {
     fn surround(&self, tokens: Tokens) -> Tokens;
     fn ignore_tokens(&self) -> Tokens;
@@ -42,21 +32,6 @@ pub fn field_to_match_ref((i, field): (usize, &Field)) -> Tokens {
     match field.ident {
         Some(id) => quote!(#id: ref #ident),
         None => quote!(ref #ident)
-    }
-}
-
-impl CodegenFieldExt for Field {
-    fn to_variable_tokens(&self, i: usize, origin: FieldOrigin) -> Tokens {
-        match origin {
-            FieldOrigin::Struct => {
-                let member = self.to_field_member(i).member;
-                quote!(self.#member)
-            },
-            FieldOrigin::Variant => {
-                let ident = field_to_ident(i, &self);
-                quote!(#ident)
-            }
-        }
     }
 }
 

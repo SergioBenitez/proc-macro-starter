@@ -10,7 +10,7 @@ use rocket::http::uri::Uri;
 
 // TODO: rename to Formatter
 pub struct Formatter<'f, 'i: 'f> {
-    prefixes: SmallVec::<[&'static str; 3]>,
+    prefixes: SmallVec<[&'static str; 3]>,
     inner: &'f mut fmt::Formatter<'i>,
     previous: bool,
     fresh: bool

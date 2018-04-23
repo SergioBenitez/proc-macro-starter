@@ -11,6 +11,7 @@ mod parser;
 mod spanned;
 mod ext;
 mod codegen_ext;
+mod uri_codegen;
 
 use parser::Result as PResult;
 use proc_macro::{Span, TokenStream};
@@ -19,7 +20,7 @@ use spanned::Spanned;
 use ext::*;
 use syn::*;
 use codegen_ext::*;
-use quote::Tokens;
+use uri_codegen::*;
 
 const NO_NON_LIFETIME_GENERICS: &str = "`UriDisplay` cannot be derived for non-lifetime generics";
 const NO_UNIONS: &str = "unions cannot derive `UriDisplay`";
@@ -94,86 +95,20 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
 fn real_derive_uri_display_value_for_enums(
     data_enum: &DataEnum, input: &DeriveInput
 ) -> PResult<TokenStream> {
-
-    let variants = &data_enum.variants;
-    let variant_idents = variants.iter().map(|v| v.ident);
-    let variant_fields = variants.iter().map(|v| v.fields.ref_match_tokens());
-    let variant_match_bodies = variants.iter().map(|v| fields_to_fmt_body(&v.fields, FieldOrigin::Variant));
-    let name_repeated = ::std::iter::repeat(input.ident);
-
-    let body = quote! {
-        match *self {
-            #(#name_repeated::#variant_idents #variant_fields => {
-                #variant_match_bodies
-            }),*
-        }
-    };
-
-    Ok(wrap_in_fmt_and_impl(body, input).into())
+    let enum_node = EnumNode::parse(data_enum, &input.ident, &input.generics);
+    let tokens = quote!(#enum_node);
+    Ok(tokens.into())
 }
 
 // Precondition: input must be valid struct
 fn real_derive_uri_display_value_for_struct(
     data_struct: &DataStruct, input: &DeriveInput
 ) -> PResult<TokenStream> {
-
-    let fmt_body = fields_to_fmt_body(&data_struct.fields, FieldOrigin::Struct);
-    Ok(wrap_in_fmt_and_impl(fmt_body, input).into())
+    let struct_node = StructNode::parse(data_struct, &input.ident, &input.generics);
+    let tokens = quote!(#struct_node);
+    Ok(tokens.into())
 }
 
-fn fields_to_fmt_body(fields: &Fields, origin: FieldOrigin) -> Tokens {
-    let vars = fields.iter().enumerate().map(|(i, field)| field.to_variable_tokens(i, origin));
-
-    match fields {
-        Fields::Named(ref fields_named) => {
-            let names = fields_named.named.iter().map(|field| field.ident.as_ref().unwrap().to_string());
-            quote! {
-                #(f.with_prefix(#names, |mut _f| _UriDisplay::fmt(&#vars, &mut _f) )?;)*
-                Ok(())
-            }
-        },
-        Fields::Unnamed(_) => {
-            quote! {
-                #(_UriDisplay::fmt(&#vars, f)?;)*
-                Ok(())
-            }
-        },
-        _ => panic!("This code path is never reached!")
-    }
-}
-
-fn wrap_in_fmt_and_impl(tokens: Tokens, input: &DeriveInput) -> Tokens {
-    wrap_in_impl(wrap_in_fmt(tokens), input)
-}
-
-fn wrap_in_fmt(tokens: Tokens) -> Tokens {
-    quote! {
-        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-            #tokens
-        }
-    }
-}
-
-fn wrap_in_impl(tokens: Tokens, input: &DeriveInput) -> Tokens {
-    let name = input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
-
-    quote! {
-        mod #scope {
-            extern crate std;
-            extern crate rocket;
-
-            use self::std::prelude::v1::*;
-            use self::std::fmt;
-            use self::rocket::http::uri::*;
-
-            impl #impl_generics _UriDisplay for #name #ty_generics #where_clause {
-                #tokens
-            }
-        }
-    }
-}
 
 #[proc_macro_derive(_UriDisplay)]
 pub fn derive_uri_display_value(input: TokenStream) -> TokenStream {

@@ -1,10 +1,21 @@
+use std::fmt;
+use std::fmt::*;
 use syn::*;
 use spanned::Spanned;
 
 #[derive(Debug, Clone)]
 pub struct FieldMember<'f> {
     pub field: &'f Field,
-    pub  member: Member
+    pub member: Member
+}
+
+impl<'f> Display for FieldMember<'f> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match self.member {
+            Member::Named(ref ident) => Display::fmt(ident, formatter),
+            Member::Unnamed(ref index) => Display::fmt(&index.index, formatter)
+        }
+    }
 }
 
 pub trait MemberExt {
@@ -54,7 +65,7 @@ pub(crate) trait FieldsExt {
     fn is_unit(&self) -> bool;
     fn nth(&self, i: usize) -> Option<&Field>;
     fn find_member(&self, member: &Member) -> Option<&Field>;
-    fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f>;
+    fn to_field_members<'f>(&'f self) -> Vec<FieldMember<'f>>;
 }
 
 impl FieldsExt for Fields {
@@ -98,9 +109,9 @@ impl FieldsExt for Fields {
             _ => false
         }
     }
-
-    fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f> {
-        Box::new(self.iter().enumerate().map(|(index, field)| field.to_field_member(index)))
+    
+    fn to_field_members<'f>(&'f self) -> Vec<FieldMember<'f>> {
+        self.iter().enumerate().map(|(index, field)| field.to_field_member(index)).collect()
     }
 
     fn nth(&self, i: usize) -> Option<&Field> {
