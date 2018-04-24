@@ -41,9 +41,9 @@ impl<'f> ToTokens for FieldMembersNode<'f> {
 			let var = field_member_to_variable(fm, self.origin);
 			if let Some(ident) = fm.field.ident {
 				let var_str = ident.as_ref();
-				quote!(f.with_prefix(#var_str, |mut _f| _UriDisplay::fmt(&#var, &mut _f) )?;)
+				quote!(f.write_named_value(#var_str, &#var)?;)
 			} else {
-				quote!(_UriDisplay::fmt(&#var, f)?;)
+				quote!(f.write_value(&#var)?;)
 			}
 		});
 

@@ -30,23 +30,18 @@ const NO_EMPTY_ENUMS: &str = "`UriDisplay` cannot only be derived for enums with
 const ONLY_ONE_UNNAMED: &str = "`UriDisplay` can be derived for tuple-like structs of length only 1";
 
 fn validate_fields(fields: &Fields) -> PResult<()> {
-
-    match fields {
-        Fields::Named(_) => {},
-        Fields::Unnamed(fields_unnamed) => {
-            if fields_unnamed.unnamed.len() > 1 {
-                return Err(fields.span().error(ONLY_ONE_UNNAMED))
-            }
-        },
-        Fields::Unit => return Err(fields.span().error(NO_NULLARY))
-    }
-
     // Reject empty structs.
     if fields.is_empty() {
         return Err(fields.span().error(NO_EMPTY_FIELDS))
     }
 
-    Ok(())
+    match fields {
+        Fields::Unnamed(ref fields) if fields.unnamed.len() > 1 => {
+            Err(fields.unnamed.span().error(ONLY_ONE_UNNAMED))
+        },
+        Fields::Unit => Err(fields.span().error(NO_NULLARY)),
+        _ => Ok(())
+    }
 }
 
 fn validate_struct(data_struct: &DataStruct, input: &DeriveInput) -> PResult<()> {
