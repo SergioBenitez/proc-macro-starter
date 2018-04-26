@@ -60,7 +60,6 @@ impl<'f, 'i: 'f> Formatter<'f, 'i> {
     }
 
     pub fn write_named_seq_value<T: _UriDisplay>(&mut self, name: &str, value: T) -> fmt::Result {
-        self.fresh = true;
         self.write_named_value(name, value)
     }
 
