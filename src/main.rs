@@ -8,7 +8,6 @@ use std::fmt;
 use smallvec::SmallVec;
 use rocket::http::uri::Uri;
 
-// TODO: rename to Formatter
 pub struct Formatter<'f, 'i: 'f> {
     prefixes: SmallVec<[&'static str; 3]>,
     inner: &'f mut fmt::Formatter<'i>,
@@ -55,12 +54,14 @@ impl<'f, 'i: 'f> Formatter<'f, 'i> {
         result
     }
 
-    fn write_seq_value<T: _UriDisplay>(&mut self, name: &str, value: T) -> fmt::Result {
-        unimplemented!()
+    pub fn write_seq_value<T: _UriDisplay>(&mut self, value: T) -> fmt::Result {
+        self.fresh = true;
+        self.write_value(value)
     }
 
-    fn write_named_seq_value<T: _UriDisplay>(&mut self, name: &str, value: T) -> fmt::Result {
-        unimplemented!()
+    pub fn write_named_seq_value<T: _UriDisplay>(&mut self, name: &str, value: T) -> fmt::Result {
+        self.fresh = true;
+        self.write_named_value(name, value)
     }
 
     #[inline]
@@ -169,14 +170,40 @@ pub enum Shape {
     Sphere { radius: Complex, center: BigInt}
 }
 
-pub fn main() {
-    let p = Animal{ name: "clifford", color: "red" };
-    let e = Person { name: "emily", age: 5, pet : p };
-    println!("{}", &e as &_UriDisplay);
-    assert_eq!((&e as &_UriDisplay).to_string(), "name=emily&age=5&pet.name=clifford&pet.color=red");
+#[derive(_UriDisplay)]
+pub struct Baz {
+    q: Qux
+}
 
-    let c = Complex(1, 2);
-    let s = Shape::Sphere { radius: c, center: BigInt(3) };
-    println!("{}", (&s as &_UriDisplay));
-    assert_eq!((&s as &_UriDisplay).to_string(), "radius=1+2&center=3");
+pub struct Qux(FooBar, FooBar);
+
+#[derive(_UriDisplay)]
+pub struct FooBar {
+    x: u8,
+    y: u8
+}
+
+impl _UriDisplay for Qux {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.write_seq_value(&self.0)?;
+        f.write_seq_value(&self.1)?;
+        Ok(())
+    }
+}
+
+pub fn main() {
+    // let p = Animal{ name: "clifford", color: "red" };
+    // let e = Person { name: "emily", age: 5, pet : p };
+    // println!("{}", &e as &_UriDisplay);
+    // assert_eq!((&e as &_UriDisplay).to_string(), "name=emily&age=5&pet.name=clifford&pet.color=red");
+
+    // let c = Complex(1, 2);
+    // let s = Shape::Sphere { radius: c, center: BigInt(3) };
+    // println!("{}", (&s as &_UriDisplay));
+    // assert_eq!((&s as &_UriDisplay).to_string(), "radius=1+2&center=3");
+    let a = FooBar { x: 1, y: 2 };
+    let b = FooBar { x: 8, y: 9 };
+    let q = Qux(a, b);
+    let c = Baz { q: q };
+    println!("{}", &c as &_UriDisplay);
 }
