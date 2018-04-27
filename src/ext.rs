@@ -3,10 +3,17 @@ use std::fmt::*;
 use syn::*;
 use spanned::Spanned;
 
+#[derive(Debug, Copy, Clone)]
+pub enum FieldOrigin {
+    Enum,
+    Struct
+}
+
 #[derive(Debug, Clone)]
 pub struct FieldMember<'f> {
     pub field: &'f Field,
-    pub member: Member
+    pub member: Member,
+    pub origin: FieldOrigin
 }
 
 impl<'f> Display for FieldMember<'f> {
@@ -40,17 +47,17 @@ impl MemberExt for Member {
 }
 
 pub(crate) trait FieldExt {
-    fn to_field_member(&self, i: usize) -> FieldMember;
+    fn to_field_member(&self, i: usize, o: FieldOrigin) -> FieldMember;
 }
 
 impl FieldExt for Field {
-    fn to_field_member(&self, i: usize) -> FieldMember {
+    fn to_field_member(&self, i: usize, o: FieldOrigin) -> FieldMember {
         if let Some(ident) = self.ident {
-            FieldMember { field: &self, member: Member::Named(ident) }
+            FieldMember { field: &self, member: Member::Named(ident), origin: o }
         } else {
             let index = Index { index: i as u32, span: self.span().into() };
             let member = Member::Unnamed(index);
-            FieldMember { field: &self, member: member }
+            FieldMember { field: &self, member: member, origin: o }
         }
     }
 }
@@ -65,7 +72,7 @@ pub(crate) trait FieldsExt {
     fn is_unit(&self) -> bool;
     fn nth(&self, i: usize) -> Option<&Field>;
     fn find_member(&self, member: &Member) -> Option<&Field>;
-    fn to_field_members<'f>(&'f self) -> Vec<FieldMember<'f>>;
+    fn to_field_members<'f>(&'f self, o: FieldOrigin) -> Vec<FieldMember<'f>>;
 }
 
 impl FieldsExt for Fields {
@@ -110,8 +117,8 @@ impl FieldsExt for Fields {
         }
     }
     
-    fn to_field_members<'f>(&'f self) -> Vec<FieldMember<'f>> {
-        self.iter().enumerate().map(|(index, field)| field.to_field_member(index)).collect()
+    fn to_field_members<'f>(&'f self, o: FieldOrigin) -> Vec<FieldMember<'f>> {
+        self.iter().enumerate().map(|(index, field)| field.to_field_member(index, o)).collect()
     }
 
     fn nth(&self, i: usize) -> Option<&Field> {

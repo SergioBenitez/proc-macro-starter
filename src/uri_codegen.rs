@@ -5,68 +5,44 @@ use ext::*;
 use codegen_ext::*;
 use FieldMember;
 
-#[derive(Copy, Clone)]
-pub enum FieldOrigin {
-    Variant,
-    Struct
-}
-
-pub struct FieldMembersNode<'f> {
-    members: Vec<FieldMember<'f>>,
-    origin: FieldOrigin,
-    named: bool
-}
-
-impl<'f> FieldMembersNode<'f> {
-    pub fn new(fields: &'f Fields, origin: FieldOrigin) -> FieldMembersNode<'f> {
-        FieldMembersNode { members: fields.to_field_members(), origin: origin, named: fields.is_named() }
-    }
-}
-
-fn field_member_to_variable(fm: &FieldMember, origin: FieldOrigin) -> Tokens {
-    match origin {
+fn field_member_to_variable(fm: &FieldMember) -> Tokens {
+    match fm.origin {
         FieldOrigin::Struct => {
             let mem = &fm.member;
             quote!(self.#mem)
         },
-        FieldOrigin::Variant => {
+        FieldOrigin::Enum => {
             fm.tokens() // TODO: change to ToTokens?
         }
     }
 }
 
-impl<'f> ToTokens for FieldMembersNode<'f> {
+impl<'f> ToTokens for FieldMember<'f> {
     fn to_tokens(&self, tokens: &mut Tokens) {
-        let uri_display_calls = self.members.iter().map(|fm| {
-            let var = field_member_to_variable(fm, self.origin);
-            if let Some(ident) = fm.field.ident {
+        let var = field_member_to_variable(&self);
+        let uri_display_call = match self.field.ident {
+            Some(ident) => {
                 let var_str = ident.as_ref();
                 quote!(f.write_named_value(#var_str, &#var)?;)
-            } else {
-                quote!(f.write_value(&#var)?;)
-            }
-        });
-
-        let concat_with_result = quote! {
-            #(#uri_display_calls)*
-            Ok(())
+            },
+            None => quote!(f.write_value(&#var)?;)
         };
-
-        tokens.append_all(concat_with_result.into_iter());
+        tokens.append_all(uri_display_call.into_iter());
     }
 }
 
 pub struct StructNode<'a, 'f, 'g> {
     name: &'a Ident,
-    field_members: FieldMembersNode<'f>,
+    fields: &'f Fields,
     lifetimes: &'g Generics
 }
 
 impl<'a, 'f, 'g> StructNode<'a, 'f, 'g> {
     pub fn new(data_struct: &'f DataStruct, name: &'a Ident, lifetimes: &'g Generics) -> StructNode<'a, 'f, 'g> {
+        let fields = &data_struct.fields;
         StructNode {
             name: name,
-            field_members: FieldMembersNode::new(&data_struct.fields, FieldOrigin::Struct),
+            fields: fields,
             lifetimes: lifetimes
         }
     }
@@ -74,38 +50,55 @@ impl<'a, 'f, 'g> StructNode<'a, 'f, 'g> {
 
 impl<'a, 'f, 'g> ToTokens for StructNode<'a, 'f, 'g> {
     fn to_tokens(&self, tokens: &mut Tokens) {
-        let field_members = &self.field_members;
-        let uri_display_body = quote!(#field_members);
+        let field_members = self.fields.to_field_members(FieldOrigin::Struct);
+        let uri_display_body = quote! { #(#field_members);* Ok(()) };
         let uri_display_impl = wrap_in_fmt_and_impl(uri_display_body, self.name, self.lifetimes);
         tokens.append_all(uri_display_impl.into_iter());
     }
 }
 
-pub struct VariantNode<'f> {
+pub struct VariantNode<'f, 'a> {
     name: &'f Ident,
-    field_members: FieldMembersNode<'f>,
+    fields: &'f Fields,
+    enum_name: &'a Ident
 }
 
-impl<'f> VariantNode<'f> {
-    pub fn new(variant: &'f Variant) -> VariantNode<'f> {
+impl<'f, 'a> VariantNode<'f, 'a> {
+    pub fn new(variant: &'f Variant, enum_name: &'a Ident) -> VariantNode<'f, 'a> {
+        // let field_members = variant.fields.to_field_members(FieldOrigin::Enum);
         VariantNode {
             name: &variant.ident,
-            field_members: FieldMembersNode::new(&variant.fields, FieldOrigin::Variant)
+            fields: &variant.fields,
+            enum_name: enum_name
         }
+    }
+}
+
+impl<'f, 'a> ToTokens for VariantNode<'f, 'a> {
+    fn to_tokens(&self, tokens: &mut Tokens) {
+        let enum_name = self.enum_name;
+        let arm_name = self.name;
+        let refs = self.fields.ref_match_tokens();
+        let field_members = self.fields.to_field_members(FieldOrigin::Enum);
+        let uri_display_body = quote! { #(#field_members);* Ok(()) };
+        let uri_display_arm = quote! {
+            #enum_name::#arm_name #refs => { #uri_display_body }
+        };
+        tokens.append_all(uri_display_arm.into_iter());
     }
 }
 
 pub struct EnumNode<'a, 'f, 'g> {
     name: &'a Ident,
-    variants: Vec<VariantNode<'f>>,
+    variants: Vec<VariantNode<'f, 'a>>,
     lifetimes: &'g Generics
 }
 
 impl<'a, 'f, 'g>EnumNode<'a, 'f, 'g> {
     pub fn new(data_enum: &'f DataEnum, name: &'a Ident, lifetimes: &'g Generics) -> EnumNode<'a, 'f, 'g> {
         let variant_nodes = data_enum.variants.iter()
-            .map(|v| VariantNode::new(v))
-            .collect::<Vec<VariantNode<'f>>>();
+            .map(|v| VariantNode::new(v, name))
+            .collect::<Vec<VariantNode<'f, 'a>>>();
         EnumNode {
             name: name,
             variants: variant_nodes,
@@ -116,23 +109,10 @@ impl<'a, 'f, 'g>EnumNode<'a, 'f, 'g> {
 
 impl<'a, 'f, 'g> ToTokens for EnumNode<'a, 'f, 'g> {
     fn to_tokens(&self, tokens: &mut Tokens) {
-        let enum_name = &self.name;
-        let arms = self.variants.iter().map(|v| {
-            let arm_name = v.name;
-            let match_refs = v.field_members.members.iter().enumerate().map(|(i, fm)| (i, fm.field)).map(field_to_match_ref);
-            let refs = match v.field_members.named { // surround?
-                true => quote!({#(#match_refs),*}),
-                false => quote!((#(#match_refs),*))
-            };
-            let field_members = &v.field_members;
-            let uri_display_body_for_arm = quote!(#field_members);
-            quote! {
-                #enum_name::#arm_name #refs => { #uri_display_body_for_arm }
-            }
-        });
+        let variants = &self.variants;
         let uri_display_body = quote! {
             match *self {
-                #(#arms),*
+                #(#variants),*
             }
         };
         let uri_display_impl = wrap_in_fmt_and_impl(uri_display_body, self.name, self.lifetimes);
