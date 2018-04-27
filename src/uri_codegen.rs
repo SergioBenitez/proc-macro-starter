@@ -103,7 +103,9 @@ pub struct EnumNode<'a, 'f, 'g> {
 
 impl<'a, 'f, 'g>EnumNode<'a, 'f, 'g> {
     pub fn new(data_enum: &'f DataEnum, name: &'a Ident, lifetimes: &'g Generics) -> EnumNode<'a, 'f, 'g> {
-        let variant_nodes : Vec<VariantNode<'f>> = data_enum.variants.iter().map(|v| VariantNode::new(v)).collect();
+        let variant_nodes = data_enum.variants.iter()
+            .map(|v| VariantNode::new(v))
+            .collect::<Vec<VariantNode<'f>>>();
         EnumNode {
             name: name,
             variants: variant_nodes,
