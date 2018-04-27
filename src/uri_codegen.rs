@@ -65,7 +65,6 @@ pub struct VariantNode<'f, 'a> {
 
 impl<'f, 'a> VariantNode<'f, 'a> {
     pub fn new(variant: &'f Variant, enum_name: &'a Ident) -> VariantNode<'f, 'a> {
-        // let field_members = variant.fields.to_field_members(FieldOrigin::Enum);
         VariantNode {
             name: &variant.ident,
             fields: &variant.fields,
