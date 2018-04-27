@@ -18,7 +18,7 @@ pub struct FieldMembersNode<'f> {
 }
 
 impl<'f> FieldMembersNode<'f> {
-    pub fn parse(fields: &'f Fields, origin: FieldOrigin) -> FieldMembersNode<'f> {
+    pub fn new(fields: &'f Fields, origin: FieldOrigin) -> FieldMembersNode<'f> {
         FieldMembersNode { members: fields.to_field_members(), origin: origin, named: fields.is_named() }
     }
 }
@@ -63,10 +63,10 @@ pub struct StructNode<'a, 'f, 'g> {
 }
 
 impl<'a, 'f, 'g> StructNode<'a, 'f, 'g> {
-    pub fn parse(data_struct: &'f DataStruct, name: &'a Ident, lifetimes: &'g Generics) -> StructNode<'a, 'f, 'g> {
+    pub fn new(data_struct: &'f DataStruct, name: &'a Ident, lifetimes: &'g Generics) -> StructNode<'a, 'f, 'g> {
         StructNode {
             name: name,
-            field_members: FieldMembersNode::parse(&data_struct.fields, FieldOrigin::Struct),
+            field_members: FieldMembersNode::new(&data_struct.fields, FieldOrigin::Struct),
             lifetimes: lifetimes
         }
     }
@@ -87,10 +87,10 @@ pub struct VariantNode<'f> {
 }
 
 impl<'f> VariantNode<'f> {
-    pub fn parse(variant: &'f Variant) -> VariantNode<'f> {
+    pub fn new(variant: &'f Variant) -> VariantNode<'f> {
         VariantNode {
             name: &variant.ident,
-            field_members: FieldMembersNode::parse(&variant.fields, FieldOrigin::Variant)
+            field_members: FieldMembersNode::new(&variant.fields, FieldOrigin::Variant)
         }
     }
 }
@@ -102,8 +102,8 @@ pub struct EnumNode<'a, 'f, 'g> {
 }
 
 impl<'a, 'f, 'g>EnumNode<'a, 'f, 'g> {
-    pub fn parse(data_enum: &'f DataEnum, name: &'a Ident, lifetimes: &'g Generics) -> EnumNode<'a, 'f, 'g> {
-        let variant_nodes : Vec<VariantNode<'f>> = data_enum.variants.iter().map(|v| VariantNode::parse(v)).collect();
+    pub fn new(data_enum: &'f DataEnum, name: &'a Ident, lifetimes: &'g Generics) -> EnumNode<'a, 'f, 'g> {
+        let variant_nodes : Vec<VariantNode<'f>> = data_enum.variants.iter().map(|v| VariantNode::new(v)).collect();
         EnumNode {
             name: name,
             variants: variant_nodes,

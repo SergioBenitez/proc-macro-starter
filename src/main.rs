@@ -191,18 +191,20 @@ impl _UriDisplay for Qux {
 }
 
 pub fn main() {
-    // let p = Animal{ name: "clifford", color: "red" };
-    // let e = Person { name: "emily", age: 5, pet : p };
-    // println!("{}", &e as &_UriDisplay);
-    // assert_eq!((&e as &_UriDisplay).to_string(), "name=emily&age=5&pet.name=clifford&pet.color=red");
+    let p = Animal{ name: "clifford", color: "red" };
+    let e = Person { name: "emily", age: 5, pet : p };
+    println!("{}", &e as &_UriDisplay);
+    assert_eq!((&e as &_UriDisplay).to_string(), "name=emily&age=5&pet.name=clifford&pet.color=red");
 
-    // let c = Complex(1, 2);
-    // let s = Shape::Sphere { radius: c, center: BigInt(3) };
-    // println!("{}", (&s as &_UriDisplay));
-    // assert_eq!((&s as &_UriDisplay).to_string(), "radius=1+2&center=3");
+    let c = Complex(1, 2);
+    let s = Shape::Sphere { radius: c, center: BigInt(3) };
+    println!("{}", (&s as &_UriDisplay));
+    assert_eq!((&s as &_UriDisplay).to_string(), "radius=1+2&center=3");
+
     let a = FooBar { x: 1, y: 2 };
     let b = FooBar { x: 8, y: 9 };
     let q = Qux(a, b);
-    let c = Baz { q: q };
-    println!("{}", &c as &_UriDisplay);
+    let z = Baz { q: q };
+    println!("{}", &z as &_UriDisplay);
+    assert_eq!((&z as &_UriDisplay).to_string(), "q.x=1&q.y=2&q.x=8&q.y=9");
 }

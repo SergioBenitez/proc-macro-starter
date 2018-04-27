@@ -76,12 +76,12 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
     let tokens = match input.data {
         Data::Struct(ref data_struct) => {
             validate_struct(data_struct, &input)?;
-            let struct_node = StructNode::parse(data_struct, &input.ident, &input.generics);
+            let struct_node = StructNode::new(data_struct, &input.ident, &input.generics);
             quote!(#struct_node)
         },
         Data::Enum(ref data_enum) => {
             validate_enum(data_enum, &input)?;
-            let enum_node = EnumNode::parse(data_enum, &input.ident, &input.generics);
+            let enum_node = EnumNode::new(data_enum, &input.ident, &input.generics);
             quote!(#enum_node)
         },
         _ => return Err(input.span().error(NO_UNIONS))
