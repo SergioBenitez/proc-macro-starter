@@ -1,10 +1,8 @@
-use std::fmt;
-use std::fmt::*;
 use syn::*;
 use spanned::Spanned;
 
 #[derive(Debug, Copy, Clone)]
-pub enum FieldOrigin {
+pub enum Origin {
     Enum,
     Struct
 }
@@ -13,16 +11,7 @@ pub enum FieldOrigin {
 pub struct FieldMember<'f> {
     pub field: &'f Field,
     pub member: Member,
-    pub origin: FieldOrigin
-}
-
-impl<'f> Display for FieldMember<'f> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match self.member {
-            Member::Named(ref ident) => Display::fmt(ident, formatter),
-            Member::Unnamed(ref index) => Display::fmt(&index.index, formatter)
-        }
-    }
+    pub origin: Origin
 }
 
 pub trait MemberExt {
@@ -47,11 +36,11 @@ impl MemberExt for Member {
 }
 
 pub(crate) trait FieldExt {
-    fn to_field_member(&self, i: usize, o: FieldOrigin) -> FieldMember;
+    fn to_field_member(&self, i: usize, o: Origin) -> FieldMember;
 }
 
 impl FieldExt for Field {
-    fn to_field_member(&self, i: usize, o: FieldOrigin) -> FieldMember {
+    fn to_field_member(&self, i: usize, o: Origin) -> FieldMember {
         if let Some(ident) = self.ident {
             FieldMember { field: &self, member: Member::Named(ident), origin: o }
         } else {
@@ -72,7 +61,7 @@ pub(crate) trait FieldsExt {
     fn is_unit(&self) -> bool;
     fn nth(&self, i: usize) -> Option<&Field>;
     fn find_member(&self, member: &Member) -> Option<&Field>;
-    fn to_field_members<'f>(&'f self, o: FieldOrigin) -> Vec<FieldMember<'f>>;
+    fn to_field_members<'f>(&'f self, o: Origin) -> Vec<FieldMember<'f>>;
 }
 
 impl FieldsExt for Fields {
@@ -117,7 +106,7 @@ impl FieldsExt for Fields {
         }
     }
     
-    fn to_field_members<'f>(&'f self, o: FieldOrigin) -> Vec<FieldMember<'f>> {
+    fn to_field_members<'f>(&'f self, o: Origin) -> Vec<FieldMember<'f>> {
         self.iter().enumerate().map(|(index, field)| field.to_field_member(index, o)).collect()
     }
 

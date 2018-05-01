@@ -19,33 +19,32 @@ use spanned::Spanned;
 
 use ext::*;
 use syn::*;
-use codegen_ext::*;
 use uri_codegen::*;
 
-const NO_NON_LIFETIME_GENERICS: &str = "`UriDisplay` cannot be derived for non-lifetime generics";
+const NO_CONST_GENERICS: &str = "`UriDisplay` cannot be derived for const generics";
 const NO_UNIONS: &str = "unions cannot derive `UriDisplay`";
 const NO_EMPTY_FIELDS: &str = "`UriDisplay` cannot be derived for structs or variants with no fields";
 const NO_NULLARY: &str = "`UriDisplay` cannot only be derived for nullary structs and enum variants";
 const NO_EMPTY_ENUMS: &str = "`UriDisplay` cannot only be derived for enums with no variants";
 const ONLY_ONE_UNNAMED: &str = "`UriDisplay` can be derived for tuple-like structs of length only 1";
 
-fn validate_fields(fields: &Fields) -> PResult<()> {
-    // Reject empty structs.
+fn validate_fields(fields: &Fields, parent_span: Span) -> PResult<()> {
+    // Reject empty structs and variants.
     if fields.is_empty() {
-        return Err(fields.span().error(NO_EMPTY_FIELDS))
+        return Err(parent_span.error(NO_EMPTY_FIELDS))
     }
 
     match fields {
-        Fields::Unnamed(ref fields) if fields.unnamed.len() > 1 => {
-            Err(fields.unnamed.span().error(ONLY_ONE_UNNAMED))
+        Fields::Unnamed(ref u_fields) if u_fields.unnamed.len() > 1 => {
+            Err(u_fields.unnamed.span().error(ONLY_ONE_UNNAMED))
         },
-        Fields::Unit => Err(fields.span().error(NO_NULLARY)),
+        Fields::Unit => Err(parent_span.error(NO_NULLARY)),
         _ => Ok(())
     }
 }
 
 fn validate_struct(data_struct: &DataStruct, input: &DeriveInput) -> PResult<()> {
-    validate_fields(&data_struct.fields)
+    validate_fields(&data_struct.fields, input.span())
 }
 
 fn validate_enum(data_enum: &DataEnum, input: &DeriveInput) -> PResult<()> {
@@ -53,7 +52,7 @@ fn validate_enum(data_enum: &DataEnum, input: &DeriveInput) -> PResult<()> {
         return Err(input.span().error(NO_EMPTY_ENUMS));
     }
     for variant in data_enum.variants.iter() {
-        validate_fields(&variant.fields)?;
+        validate_fields(&variant.fields, variant.span())?;
     }
     Ok(())
 }
@@ -65,14 +64,15 @@ fn real_derive_uri_display_value(input: TokenStream) -> PResult<TokenStream> {
     })?;
 
 
-    // This derive doesn't support non-lifetime generics.
+    // This derive doesn't support const generics.
     for param in input.generics.params.iter() {
         match param {
-            GenericParam::Lifetime(_) => { },
-            _ => return Err(param.span().error(NO_NON_LIFETIME_GENERICS))
+            GenericParam::Const(_) => return Err(param.span().error(NO_CONST_GENERICS)),
+            _ => { }
         }
     }
 
+    // Validate input, parse into internal AST, and generate code for impl
     let tokens = match input.data {
         Data::Struct(ref data_struct) => {
             validate_struct(data_struct, &input)?;

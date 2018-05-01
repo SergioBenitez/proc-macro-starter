@@ -190,6 +190,27 @@ impl _UriDisplay for Qux {
     }
 }
 
+#[derive(_UriDisplay)]
+pub struct Generic<T> {
+    x: T
+}
+
+#[derive(_UriDisplay)]
+pub struct NestedGeneric<T> where T: _UriDisplay {
+    y: Generic<T>
+}
+
+// #[derive(_UriDisplay)]
+// pub enum TestBad {
+//     First { b: Bad }
+// }
+
+// #[derive(_UriDisplay)]
+// pub enum TestBad {
+//     First { b: Bad }
+// }
+
+
 pub fn main() {
     let p = Animal{ name: "clifford", color: "red" };
     let e = Person { name: "emily", age: 5, pet : p };

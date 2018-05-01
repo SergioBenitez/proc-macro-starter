@@ -1,17 +1,16 @@
+use ext::*;
+use codegen_ext::*;
 use syn::*;
 use quote::{Tokens, ToTokens};
-use ext::*;
-
-use codegen_ext::*;
-use FieldMember;
+use spanned::Spanned;
 
 fn field_member_to_variable(fm: &FieldMember) -> Tokens {
     match fm.origin {
-        FieldOrigin::Struct => {
+        Origin::Struct => {
             let mem = &fm.member;
             quote!(self.#mem)
         },
-        FieldOrigin::Enum => {
+        Origin::Enum => {
             fm.tokens() // TODO: change to ToTokens?
         }
     }
@@ -23,9 +22,9 @@ impl<'f> ToTokens for FieldMember<'f> {
         let uri_display_call = match self.field.ident {
             Some(ident) => {
                 let var_str = ident.as_ref();
-                quote!(f.write_named_value(#var_str, &#var)?;)
+                quote_spanned!(self.field.ty.span().into() => f.write_named_value(#var_str, &#var)?;)
             },
-            None => quote!(f.write_value(&#var)?;)
+            None => quote_spanned!(self.field.ty.span().into() => f.write_value(&#var)?;)
         };
         tokens.append_all(uri_display_call.into_iter());
     }
@@ -50,7 +49,7 @@ impl<'a, 'f, 'g> StructNode<'a, 'f, 'g> {
 
 impl<'a, 'f, 'g> ToTokens for StructNode<'a, 'f, 'g> {
     fn to_tokens(&self, tokens: &mut Tokens) {
-        let field_members = self.fields.to_field_members(FieldOrigin::Struct);
+        let field_members = self.fields.to_field_members(Origin::Struct);
         let uri_display_body = quote! { #(#field_members);* Ok(()) };
         let uri_display_impl = wrap_in_fmt_and_impl(uri_display_body, self.name, self.lifetimes);
         tokens.append_all(uri_display_impl.into_iter());
@@ -78,7 +77,7 @@ impl<'f, 'a> ToTokens for VariantNode<'f, 'a> {
         let enum_name = self.enum_name;
         let arm_name = self.name;
         let refs = self.fields.ref_match_tokens();
-        let field_members = self.fields.to_field_members(FieldOrigin::Enum);
+        let field_members = self.fields.to_field_members(Origin::Enum);
         let uri_display_body = quote! { #(#field_members);* Ok(()) };
         let uri_display_arm = quote! {
             #enum_name::#arm_name #refs => { #uri_display_body }
@@ -132,8 +131,15 @@ fn wrap_in_fmt(tokens: Tokens) -> Tokens {
 }
 
 fn wrap_in_impl(tokens: Tokens, name: &Ident, generics: &Generics) -> Tokens {
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let (impl_generics, ty_generics, maybe_where_clause) = generics.split_for_impl();
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
+    let uri_display_bounds = generics.type_params().map(|p| p.ident).map(|i| quote! { #i : _UriDisplay });
+    let where_bounded_type_generics = match maybe_where_clause {
+        Some(where_clause) => quote! { #where_clause, #(#uri_display_bounds),* },
+        None => quote! {
+            where #(#uri_display_bounds),*
+        }
+    };
 
     quote! {
         mod #scope {
@@ -144,7 +150,7 @@ fn wrap_in_impl(tokens: Tokens, name: &Ident, generics: &Generics) -> Tokens {
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            impl #impl_generics _UriDisplay for #name #ty_generics #where_clause {
+            impl #impl_generics _UriDisplay for #name #ty_generics #where_bounded_type_generics {
                 #tokens
             }
         }
