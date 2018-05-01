@@ -133,12 +133,12 @@ fn wrap_in_fmt(tokens: Tokens) -> Tokens {
 fn wrap_in_impl(tokens: Tokens, name: &Ident, generics: &Generics) -> Tokens {
     let (impl_generics, ty_generics, maybe_where_clause) = generics.split_for_impl();
     let scope = Ident::from(format!("scope_{}", name.to_string().to_lowercase()));
-    let uri_display_bounds = generics.type_params().map(|p| p.ident).map(|i| quote! { #i : _UriDisplay });
+    let uri_display_bounds = generics.type_params()
+        .map(|p| p.ident)
+        .map(|i| quote! { #i : _UriDisplay });
     let where_bounded_type_generics = match maybe_where_clause {
         Some(where_clause) => quote! { #where_clause, #(#uri_display_bounds),* },
-        None => quote! {
-            where #(#uri_display_bounds),*
-        }
+        None => quote! { where #(#uri_display_bounds),* }
     };
 
     quote! {
