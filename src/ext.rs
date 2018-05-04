@@ -1,6 +1,18 @@
 use syn::*;
-use FieldMember;
 use spanned::Spanned;
+
+#[derive(Debug, Copy, Clone)]
+pub enum Origin {
+    Enum,
+    Struct
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldMember<'f> {
+    pub field: &'f Field,
+    pub member: Member,
+    pub origin: Origin
+}
 
 pub trait MemberExt {
     fn named(&self) -> Option<&Ident>;
@@ -23,6 +35,22 @@ impl MemberExt for Member {
     }
 }
 
+pub(crate) trait FieldExt {
+    fn to_field_member(&self, i: usize, o: Origin) -> FieldMember;
+}
+
+impl FieldExt for Field {
+    fn to_field_member(&self, i: usize, o: Origin) -> FieldMember {
+        if let Some(ident) = self.ident {
+            FieldMember { field: &self, member: Member::Named(ident), origin: o }
+        } else {
+            let index = Index { index: i as u32, span: self.span().into() };
+            let member = Member::Unnamed(index);
+            FieldMember { field: &self, member: member, origin: o }
+        }
+    }
+}
+
 pub(crate) trait FieldsExt {
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
@@ -33,7 +61,7 @@ pub(crate) trait FieldsExt {
     fn is_unit(&self) -> bool;
     fn nth(&self, i: usize) -> Option<&Field>;
     fn find_member(&self, member: &Member) -> Option<&Field>;
-    fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f>;
+    fn to_field_members<'f>(&'f self, o: Origin) -> Vec<FieldMember<'f>>;
 }
 
 impl FieldsExt for Fields {
@@ -77,17 +105,9 @@ impl FieldsExt for Fields {
             _ => false
         }
     }
-
-    fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f> {
-        Box::new(self.iter().enumerate().map(|(index, field)| {
-            if let Some(ident) = field.ident {
-                FieldMember { field, member: Member::Named(ident) }
-            } else {
-                let index = Index { index: index as u32, span: field.span().into() };
-                let member = Member::Unnamed(index);
-                FieldMember { field, member }
-            }
-        }))
+    
+    fn to_field_members<'f>(&'f self, o: Origin) -> Vec<FieldMember<'f>> {
+        self.iter().enumerate().map(|(index, field)| field.to_field_member(index, o)).collect()
     }
 
     fn nth(&self, i: usize) -> Option<&Field> {

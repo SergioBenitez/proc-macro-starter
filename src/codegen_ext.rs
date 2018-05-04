@@ -3,12 +3,11 @@ use ext::*;
 use quote::Tokens;
 use spanned::Spanned;
 
-use FieldMember;
-
 pub trait CodegenFieldsExt {
     fn surround(&self, tokens: Tokens) -> Tokens;
     fn ignore_tokens(&self) -> Tokens;
     fn id_match_tokens(&self) -> Tokens;
+    fn ref_match_tokens(&self) -> Tokens;
 }
 
 pub fn field_to_ident(i: usize, field: &Field) -> Ident {
@@ -25,6 +24,14 @@ pub fn field_to_match((i, field): (usize, &Field)) -> Tokens {
     match field.ident {
         Some(id) => quote!(#id: #ident),
         None => quote!(#ident)
+    }
+}
+
+pub fn field_to_match_ref((i, field): (usize, &Field)) -> Tokens {
+    let ident = field_to_ident(i, field);
+    match field.ident {
+        Some(id) => quote!(#id: ref #ident),
+        None => quote!(ref #ident)
     }
 }
 
@@ -47,6 +54,14 @@ impl CodegenFieldsExt for Fields {
             .map(field_to_match);
 
         self.surround(quote!(#(#idents),*))
+    }
+
+    fn ref_match_tokens(&self) -> Tokens {
+        let refs = self.iter()
+            .enumerate()
+            .map(field_to_match_ref);
+
+        self.surround(quote!(#(#refs),*))
     }
 }
 
