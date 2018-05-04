@@ -139,7 +139,7 @@ fn wrap_in_impl(tokens: Tokens, name: &Ident, generics: &Generics) -> Tokens {
         .map(|p| p.ident)
         .map(|i| quote! { #i : _UriDisplay });
     let where_uri_display_bound = match maybe_where_clause {
-        Some(where_clause) if !where_clause.predicates.is_empty() => 
+        Some(where_clause) if !where_clause.predicates.is_empty() =>
             quote! { #where_clause, #(#uri_display_bounds),* },
         _ => quote! { where #(#uri_display_bounds),* }
     };
