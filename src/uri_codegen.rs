@@ -19,35 +19,35 @@ fn field_member_to_variable(fm: &FieldMember) -> Tokens {
 impl<'f> ToTokens for FieldMember<'f> {
     fn to_tokens(&self, tokens: &mut Tokens) {
         let var = field_member_to_variable(&self);
+        let span = self.field.ty.span();
         let uri_display_call = match self.field.ident {
             Some(ident) => {
                 let var_str = ident.as_ref();
-                quote_spanned!(self.field.ty.span().into() => f.write_named_value(#var_str, &#var)?;)
+                quote_spanned! { span.into() => f.write_named_value(#var_str, &#var)?; }
             },
-            None => quote_spanned!(self.field.ty.span().into() => f.write_value(&#var)?;)
+            None => quote_spanned! { span.into() => f.write_value(&#var)?; }
         };
         tokens.append_all(uri_display_call.into_iter());
     }
 }
 
-pub struct StructNode<'a, 'f, 'g> {
-    name: &'a Ident,
+pub struct StructNode<'i, 'f, 'g> {
+    name: &'i Ident,
     fields: &'f Fields,
     lifetimes: &'g Generics
 }
 
-impl<'a, 'f, 'g> StructNode<'a, 'f, 'g> {
-    pub fn new(data_struct: &'f DataStruct, name: &'a Ident, lifetimes: &'g Generics) -> StructNode<'a, 'f, 'g> {
-        let fields = &data_struct.fields;
+impl<'i, 'f, 'g> StructNode<'i, 'f, 'g> {
+    pub fn new(data_struct: &'f DataStruct, name: &'i Ident, lifetimes: &'g Generics) -> StructNode<'i, 'f, 'g> {
         StructNode {
             name: name,
-            fields: fields,
+            fields: &data_struct.fields,
             lifetimes: lifetimes
         }
     }
 }
 
-impl<'a, 'f, 'g> ToTokens for StructNode<'a, 'f, 'g> {
+impl<'i, 'f, 'g> ToTokens for StructNode<'i, 'f, 'g> {
     fn to_tokens(&self, tokens: &mut Tokens) {
         let field_members = self.fields.to_field_members(Origin::Struct);
         let uri_display_body = quote! { #(#field_members);* Ok(()) };
@@ -56,14 +56,14 @@ impl<'a, 'f, 'g> ToTokens for StructNode<'a, 'f, 'g> {
     }
 }
 
-pub struct VariantNode<'f, 'a> {
-    name: &'f Ident,
-    fields: &'f Fields,
-    enum_name: &'a Ident
+pub struct VariantNode<'a, 'b> {
+    name: &'a Ident,
+    fields: &'a Fields,
+    enum_name: &'b Ident
 }
 
-impl<'f, 'a> VariantNode<'f, 'a> {
-    pub fn new(variant: &'f Variant, enum_name: &'a Ident) -> VariantNode<'f, 'a> {
+impl<'a, 'b> VariantNode<'a, 'b> {
+    pub fn new(variant: &'a Variant, enum_name: &'b Ident) -> VariantNode<'a, 'b> {
         VariantNode {
             name: &variant.ident,
             fields: &variant.fields,
@@ -72,13 +72,15 @@ impl<'f, 'a> VariantNode<'f, 'a> {
     }
 }
 
-impl<'f, 'a> ToTokens for VariantNode<'f, 'a> {
+impl<'a, 'b> ToTokens for VariantNode<'a, 'b> {
     fn to_tokens(&self, tokens: &mut Tokens) {
         let enum_name = self.enum_name;
         let arm_name = self.name;
         let refs = self.fields.ref_match_tokens();
+
         let field_members = self.fields.to_field_members(Origin::Enum);
         let uri_display_body = quote! { #(#field_members);* Ok(()) };
+
         let uri_display_arm = quote! {
             #enum_name::#arm_name #refs => { #uri_display_body }
         };
@@ -86,17 +88,17 @@ impl<'f, 'a> ToTokens for VariantNode<'f, 'a> {
     }
 }
 
-pub struct EnumNode<'a, 'f, 'g> {
-    name: &'a Ident,
-    variants: Vec<VariantNode<'f, 'a>>,
+pub struct EnumNode<'a, 'b, 'g> {
+    name: &'b Ident,
+    variants: Vec<VariantNode<'a, 'b>>,
     lifetimes: &'g Generics
 }
 
-impl<'a, 'f, 'g>EnumNode<'a, 'f, 'g> {
-    pub fn new(data_enum: &'f DataEnum, name: &'a Ident, lifetimes: &'g Generics) -> EnumNode<'a, 'f, 'g> {
+impl<'a, 'b, 'g>EnumNode<'a, 'b, 'g> {
+    pub fn new(data_enum: &'a DataEnum, name: &'b Ident, lifetimes: &'g Generics) -> EnumNode<'a, 'b, 'g> {
         let variant_nodes = data_enum.variants.iter()
             .map(|v| VariantNode::new(v, name))
-            .collect::<Vec<VariantNode<'f, 'a>>>();
+            .collect::<Vec<VariantNode<'a, 'b>>>();
         EnumNode {
             name: name,
             variants: variant_nodes,
@@ -105,7 +107,7 @@ impl<'a, 'f, 'g>EnumNode<'a, 'f, 'g> {
     }
 }
 
-impl<'a, 'f, 'g> ToTokens for EnumNode<'a, 'f, 'g> {
+impl<'a, 'b, 'g> ToTokens for EnumNode<'a, 'b, 'g> {
     fn to_tokens(&self, tokens: &mut Tokens) {
         let variants = &self.variants;
         let uri_display_body = quote! {
@@ -136,9 +138,10 @@ fn wrap_in_impl(tokens: Tokens, name: &Ident, generics: &Generics) -> Tokens {
     let uri_display_bounds = generics.type_params()
         .map(|p| p.ident)
         .map(|i| quote! { #i : _UriDisplay });
-    let where_bounded_type_generics = match maybe_where_clause {
-        Some(where_clause) => quote! { #where_clause, #(#uri_display_bounds),* },
-        None => quote! { where #(#uri_display_bounds),* }
+    let where_uri_display_bound = match maybe_where_clause {
+        Some(where_clause) if !where_clause.predicates.is_empty() => 
+            quote! { #where_clause, #(#uri_display_bounds),* },
+        _ => quote! { where #(#uri_display_bounds),* }
     };
 
     quote! {
@@ -150,7 +153,7 @@ fn wrap_in_impl(tokens: Tokens, name: &Ident, generics: &Generics) -> Tokens {
             use self::std::fmt;
             use self::rocket::http::uri::*;
 
-            impl #impl_generics _UriDisplay for #name #ty_generics #where_bounded_type_generics {
+            impl #impl_generics _UriDisplay for #name #ty_generics #where_uri_display_bound {
                 #tokens
             }
         }

@@ -8,14 +8,14 @@ use std::fmt;
 use smallvec::SmallVec;
 use rocket::http::uri::Uri;
 
-pub struct Formatter<'f, 'i: 'f> {
+pub struct Formatter<'i, 'f: 'i> {
     prefixes: SmallVec<[&'static str; 3]>,
-    inner: &'f mut fmt::Formatter<'i>,
+    inner: &'i mut fmt::Formatter<'f>,
     previous: bool,
     fresh: bool
 }
 
-impl<'f, 'i: 'f> Formatter<'f, 'i> {
+impl<'i, 'f: 'i> Formatter<'i, 'f> {
     pub fn write_raw<S: AsRef<str>>(&mut self, s: S) -> fmt::Result {
         let s = s.as_ref();
         if self.fresh && !self.prefixes.is_empty() {
@@ -191,7 +191,7 @@ impl _UriDisplay for Qux {
 }
 
 #[derive(_UriDisplay)]
-pub struct Generic<T> {
+pub struct Generic<T> where {
     x: T
 }
 
