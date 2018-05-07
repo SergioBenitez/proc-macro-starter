@@ -19,11 +19,10 @@ use spanned::Spanned;
 use ext::*;
 use syn::*;
 
-const DB_CONN_NO_FIELDS_ERR: &str = "`DbConn` cannot be derived for unit structs";
-const DB_CONN_NOT_TUPLE_STRUCT_ERR: &str = "`DbConn` can only be derived for tuple structs";
-const DB_CONN_NO_GENERICS: &str = "structs with generics cannot derive `DbConn`";
-const DB_CONN_ONLY_STRUCTS: &str = "`DbConn` can only be derived for structs";
-const DB_CONN_NO_CONNECTION_SPECIFIED: &str = "`DbConn` derive requires #[connection_name = \"...\"] attribute";
+const DB_ATTR_NO_FIELDS_ERR: &str = "`database` attribute cannot be applied to unit structs";
+const DB_ATTR_NOT_TUPLE_STRUCT_ERR: &str = "`database` attribute can only be applied to tuple structs";
+const DB_ATTR_NO_GENERICS: &str = "`database` attribute cannot be applied to structs with generic types";
+const DB_ATTR_ONLY_STRUCTS: &str = "`database` attribute can only be applied to structs";
 
 #[derive(Debug, Clone)]
 pub(crate) struct FieldMember<'f> {
@@ -33,19 +32,20 @@ pub(crate) struct FieldMember<'f> {
 
 fn validate_db_conn_input(input: DeriveInput) -> PResult<DataStruct> {
     if !input.generics.params.is_empty() {
-        return Err(input.generics.span().error(DB_CONN_NO_GENERICS));
+        return Err(input.generics.span().error(DB_ATTR_NO_GENERICS));
     }
 
     let input_span = input.span();
-    let data_struct = input.data.into_struct().ok_or_else(|| input_span.error(DB_CONN_ONLY_STRUCTS))?;
+    let data_struct = input.data.into_struct().ok_or_else(|| input_span.error(DB_ATTR_ONLY_STRUCTS))?;
 
     match data_struct.fields {
-        Fields::Named(_) => return Err(data_struct.fields.span().error(DB_CONN_NOT_TUPLE_STRUCT_ERR)),
+        Fields::Named(_) => return Err(data_struct.fields.span().error(DB_ATTR_NOT_TUPLE_STRUCT_ERR)),
         _ => {},
     };
 
+    // FIXME: This appears to lost span information
     if data_struct.fields.is_empty() {
-        return Err(Span::call_site().error(DB_CONN_NO_FIELDS_ERR));
+        return Err(Span::call_site().error(DB_ATTR_NO_FIELDS_ERR));
     }
 
     Ok(data_struct)
