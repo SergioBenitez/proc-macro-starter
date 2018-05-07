@@ -69,8 +69,10 @@ fn real_derive_db_conn(input: TokenStream) -> PResult<TokenStream> {
     }.into())
 }
 
-#[proc_macro_derive(DbConn, attributes(database))]
-pub fn derive_db_conn(input: TokenStream) -> TokenStream {
+#[proc_macro_attribute]
+pub fn database(metadata: TokenStream, input: TokenStream) -> TokenStream {
+    println!("{:#?}", metadata);
+    println!("{:#?}", input);
     real_derive_db_conn(input).unwrap_or_else(|diagnostic| {
         diagnostic.emit();
         TokenStream::empty()
