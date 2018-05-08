@@ -30,7 +30,7 @@ pub(crate) struct FieldMember<'f> {
     member: Member
 }
 
-fn validate_db_conn_input(input: DeriveInput) -> PResult<DataStruct> {
+fn validate_database_input(input: DeriveInput) -> PResult<DataStruct> {
     if !input.generics.params.is_empty() {
         return Err(input.generics.span().error(DB_ATTR_NO_GENERICS));
     }
@@ -43,7 +43,6 @@ fn validate_db_conn_input(input: DeriveInput) -> PResult<DataStruct> {
         _ => {},
     };
 
-    // FIXME: This appears to lost span information
     if data_struct.fields.is_empty() {
         return Err(Span::call_site().error(DB_ATTR_NO_FIELDS_ERR));
     }
@@ -53,13 +52,13 @@ fn validate_db_conn_input(input: DeriveInput) -> PResult<DataStruct> {
 
 // TODO: Get the attribute for the database name
 // TODO: Get the inner type for the database connection
-fn real_derive_db_conn(input: TokenStream) -> PResult<TokenStream> {
+fn apply_database_attr(input: TokenStream) -> PResult<TokenStream> {
     let input: DeriveInput = syn::parse(input).map_err(|e| {
         Span::call_site().error(format!("error: failed to parse input: {:?}", e))
     })?;
 
     let name = input.ident;
-    let struct_data = validate_db_conn_input(input)?;
+    let struct_data = validate_database_input(input)?;
 
     // TODO: The proc macro
 
@@ -73,7 +72,7 @@ fn real_derive_db_conn(input: TokenStream) -> PResult<TokenStream> {
 pub fn database(metadata: TokenStream, input: TokenStream) -> TokenStream {
     println!("{:#?}", metadata);
     println!("{:#?}", input);
-    real_derive_db_conn(input).unwrap_or_else(|diagnostic| {
+    apply_database_attr(input).unwrap_or_else(|diagnostic| {
         diagnostic.emit();
         TokenStream::empty()
     })
