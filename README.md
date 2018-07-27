@@ -82,7 +82,7 @@ let parsed = parser.parse_group(Delimiter::Parenthesis, |parser| {
 }).map_err(|_| attr.span().error(BAD_ATTR))?;
 ```
 
-[such a trait]: https://docs.rs/syn/0.13.1/syn/spanned/trait.Spanned.html
+[such a trait]: http://docs.rs/syn/0.14/syn/spanned/trait.Spanned.html
 [extension traits]: http://xion.io/post/code/rust-extension-traits.html
 
 ## Development
@@ -107,4 +107,4 @@ To merge this into Rocket, you'll need to write some positive and negative unit
 tests. Don't worry about this at first. If you're curious to see what these look
 like, see the [existing codegen test suite].
 
-[existing codegen test suite]: https://github.com/SergioBenitez/Rocket/tree/master/codegen/tests
+[existing codegen test suite]: https://github.com/SergioBenitez/Rocket/tree/master/core/codegen/tests
