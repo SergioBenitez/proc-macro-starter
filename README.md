@@ -26,11 +26,11 @@ The implementation depends on the following libraries:
 
   * [`proc_macro2`](https://docs.rs/proc-macro2)
 
-    Crate that provide types that wrap the unstable `proc_macro` types,
+    Crate that provides types that wrap the unstable `proc_macro` types,
     providing a pseudo-stable shim. `syn` exposes types from `proc_macro2`. This
-    crate depends on it solely so that the "nightly" feature is enabled for
-    `proc_macro2` when depended on by `syn` so that the exposed typed from `syn`
-    have all of the unstable behavior.
+    crate depends on `proc-macro2` solely so that the "nightly" feature is
+    enabled for `proc_macro2` when depended on by `syn` so that the exposed
+    types from `syn` have all of the unstable behavior.
 
 ## Structure
 
