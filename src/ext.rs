@@ -7,6 +7,31 @@ pub trait MemberExt {
     fn unnamed(&self) -> Option<&Index>;
 }
 
+pub(crate) trait FieldsExt {
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
+    fn named(&self) -> Option<&FieldsNamed>;
+    fn is_named(&self) -> bool;
+    fn unnamed(&self) -> Option<&FieldsUnnamed>;
+    fn is_unnamed(&self) -> bool;
+    fn is_unit(&self) -> bool;
+    fn nth(&self, i: usize) -> Option<&Field>;
+    fn find_member(&self, member: &Member) -> Option<&Field>;
+    fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f>;
+}
+
+pub trait DataExt {
+    fn into_enum(self) -> Option<DataEnum>;
+    fn into_struct(self) -> Option<DataStruct>;
+    fn into_union(self) -> Option<DataUnion>;
+}
+
+pub trait PathExt {
+    fn is(&self, global: bool, segments: &[&str]) -> bool;
+    fn is_local(&self, segments: &[&str]) -> bool;
+    fn is_global(&self, segments: &[&str]) -> bool;
+}
+
 impl MemberExt for Member {
     fn named(&self) -> Option<&Ident> {
         match *self {
@@ -21,19 +46,6 @@ impl MemberExt for Member {
             _ => None
         }
     }
-}
-
-pub(crate) trait FieldsExt {
-    fn len(&self) -> usize;
-    fn is_empty(&self) -> bool;
-    fn named(&self) -> Option<&FieldsNamed>;
-    fn is_named(&self) -> bool;
-    fn unnamed(&self) -> Option<&FieldsUnnamed>;
-    fn is_unnamed(&self) -> bool;
-    fn is_unit(&self) -> bool;
-    fn nth(&self, i: usize) -> Option<&Field>;
-    fn find_member(&self, member: &Member) -> Option<&Field>;
-    fn to_field_members<'f>(&'f self) -> Box<Iterator<Item = FieldMember<'f>> + 'f>;
 }
 
 impl FieldsExt for Fields {
@@ -109,12 +121,6 @@ impl FieldsExt for Fields {
     }
 }
 
-pub trait PathExt {
-    fn is(&self, global: bool, segments: &[&str]) -> bool;
-    fn is_local(&self, segments: &[&str]) -> bool;
-    fn is_global(&self, segments: &[&str]) -> bool;
-}
-
 impl PathExt for Path {
     fn is(&self, global: bool, segments: &[&str]) -> bool {
         if self.global() != global || self.segments.len() != segments.len() {
@@ -137,12 +143,6 @@ impl PathExt for Path {
     fn is_global(&self, segments: &[&str]) -> bool {
         self.is(true, segments)
     }
-}
-
-pub trait DataExt {
-    fn into_enum(self) -> Option<DataEnum>;
-    fn into_struct(self) -> Option<DataStruct>;
-    fn into_union(self) -> Option<DataUnion>;
 }
 
 impl DataExt for Data {

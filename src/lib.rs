@@ -11,7 +11,6 @@ extern crate rocket;
 mod parser;
 mod spanned;
 mod ext;
-mod codegen_ext;
 
 use parser::Result as PResult;
 use proc_macro::{Span, TokenStream};
