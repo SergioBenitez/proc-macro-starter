@@ -24,12 +24,6 @@ const NO_GENERICS: &str = "enums with generics cannot derive `FromFormValue`";
 const ONLY_ENUMS: &str = "`FromFormValue` can only be derived for enums";
 const EMPTY_ENUM_WARN: &str = "deriving `FromFormValue` for empty enum";
 
-#[derive(Debug, Clone)]
-pub(crate) struct FieldMember<'f> {
-    field: &'f Field,
-    member: Member
-}
-
 fn validate_input(input: DeriveInput) -> PResult<DataEnum> {
     // This derive doesn't support generics. Error out if there are generics.
     if !input.generics.params.is_empty() {
