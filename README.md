@@ -12,11 +12,13 @@ The implementation depends on the following libraries:
 
   * [`proc_macro`](https://doc.rust-lang.org/nightly/proc_macro/index.html)
 
-    This is the (nightly only) Rust standard library crate for procedural macros.
+    This is the Rust standard library crate for procedural macros.
 
   * [`quote`](https://docs.rs/quote)
 
     The quasi-quoting crate providing the `quote!` and `quote_spanned!` macros.
+    These macros take in Rust tokens and interpolated variables (`#variables`)
+    and produce a `TokenStream`.
   
   * [`syn`](https://docs.rs/syn)
 
@@ -25,8 +27,8 @@ The implementation depends on the following libraries:
   * [`proc_macro2`](https://docs.rs/proc-macro2)
 
     Crate that provide types that wrap the unstable `proc_macro` types,
-    providing a stable shim. `syn` exposes types from `proc_macro2`. This crate
-    depends on it solely so that the "nightly" feature is enabled for
+    providing a pseudo-stable shim. `syn` exposes types from `proc_macro2`. This
+    crate depends on it solely so that the "nightly" feature is enabled for
     `proc_macro2` when depended on by `syn` so that the exposed typed from `syn`
     have all of the unstable behavior.
 
@@ -36,9 +38,10 @@ The entry point to a derive based procedural macro is annotated with
 `#[proc_macro_derive(TraitName)]`. This is the `derive_from_form_value`
 function. It must have the signature `TokenStream -> TokenStream`.
 
-This function calls `real_derive_from_form_value` which returns the `TokenStream`
-of the implementation if generating it succeeded or a [`proc_macro::Diagnostic`]
-if it failed. The `PResult<T>` type is an alias for `Result<T, Diagnostic>`.
+This function calls `real_derive_from_form_value` which returns the
+`TokenStream` of the implementation if code generation succeeded or a
+[`proc_macro::Diagnostic`] if it failed. The `PResult<T>` type is an alias for
+`Result<T, Diagnostic>`.
 
 To perform the actual code generation, the implementation first parses the
 `TokenStream` into an AST of type `DeriveInput`, inspects it, then extracts the
@@ -51,13 +54,13 @@ using the extracted information and the `quote!` macro.
 ## `ext`, `spanned`, and `parser`
 
 The `ext` module contains [extension traits] for `syn` types. These effectively
-bring in missing functionality.
+bring in missing useful functionality to external types.
 
 The `spanned` module implements the `Spanned` trait, making available the
 `span()` method, for almost every `syn` type. `syn` itself provides [such a
 trait]. The difference is that this implementation returns a `proc_macro::Span`
 as opposed to a `proc_macro2::Span`, so we can work directly with the unstable
-APIs after a call to `span()`.
+APIs (in particular, diagnostic APIs) after a call to `span()`.
 
 The `parser` module contains a `Parser` that can be used to parse arbitrary
 `syn` items from a `TokenStream`. This is useful to parse things like the
@@ -95,6 +98,10 @@ like. You'll need `rustfmt` and `Pygments` installed:
 
   * `rustup component add rustfmt-preview`
   * `pip install Pygments`
+
+Diagnostics are particular important. To see how they work, try creating invalid
+macro input, such as adding some generics to the structure, and seeing the
+resulting error messages emitted by the procedural macro.
 
 To merge this into Rocket, you'll need to write some positive and negative unit
 tests. Don't worry about this at first. If you're curious to see what these look

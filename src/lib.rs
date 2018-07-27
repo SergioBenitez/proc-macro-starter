@@ -1,4 +1,5 @@
-#![feature(proc_macro, core_intrinsics, decl_macro)]
+#![feature(proc_macro_diagnostic, proc_macro_span)]
+#![feature(core_intrinsics, decl_macro)]
 #![recursion_limit="256"]
 
 extern crate syn;
@@ -62,34 +63,25 @@ fn real_derive_from_form_value(input: TokenStream) -> PResult<TokenStream> {
     })?;
 
     // Validate the enum.
-    let name = input.ident;
+    let name = input.ident.clone();
     let enum_data = validate_input(input)?;
 
     // Create iterators over the identifers as idents and as strings.
-    let variant_strs = enum_data.variants.iter().map(|v| v.ident.as_ref() as &str);
-    let variant_idents = enum_data.variants.iter().map(|v| v.ident);
-    let names = ::std::iter::repeat(name);
+    let variant_strs = enum_data.variants.iter().map(|v| v.ident.to_string());
+    let variant_idents = enum_data.variants.iter().map(|v| &v.ident);
+    let names = ::std::iter::repeat(&name);
 
     // Generate the implementation.
     Ok(quote! {
-        mod scope {
-            extern crate std;
-            extern crate rocket;
+        impl<'v> ::rocket::request::FromFormValue<'v> for #name {
+            type Error = &'v ::rocket::http::RawStr;
 
-            use self::std::prelude::v1::*;
-            use self::rocket::request::FromFormValue;
-            use self::rocket::http::RawStr;
+            fn from_form_value(v: &'v ::rocket::http::RawStr) -> ::std::result::Result<Self, Self::Error> {
+                #(if v.as_uncased_str() == #variant_strs {
+                    return Ok(#names::#variant_idents);
+                })*
 
-            impl<'v> FromFormValue<'v> for #name {
-                type Error = &'v RawStr;
-
-                fn from_form_value(v: &'v RawStr) -> Result<Self, Self::Error> {
-                    #(if v.as_uncased_str() == #variant_strs {
-                        return Ok(#names::#variant_idents);
-                    })*
-
-                    Err(v)
-                }
+                Err(v)
             }
         }
     }.into())
@@ -97,8 +89,9 @@ fn real_derive_from_form_value(input: TokenStream) -> PResult<TokenStream> {
 
 #[proc_macro_derive(FromFormValue)]
 pub fn derive_from_form_value(input: TokenStream) -> TokenStream {
-    real_derive_from_form_value(input).unwrap_or_else(|diag| {
-        diag.emit();
-        TokenStream::empty()
-    })
+    real_derive_from_form_value(input)
+        .unwrap_or_else(|diag| {
+            diag.emit();
+            TokenStream::new()
+        })
 }
